@@ -11,9 +11,14 @@ app.use('/api', apiRouter);
 let dbInit: Promise<void> | null = null;
 
 export default async function handler(req: any, res: any) {
-  if (!dbInit) {
-    dbInit = initDatabase();
+  try {
+    if (!dbInit) {
+      dbInit = initDatabase();
+    }
+    await dbInit;
+    app(req, res);
+  } catch (err: any) {
+    // TEMPORARY: surface the real error for debugging without dashboard log access.
+    res.status(500).json({ error: err?.message || String(err), stack: err?.stack });
   }
-  await dbInit;
-  app(req, res);
 }
