@@ -25,14 +25,7 @@ var pool = null;
 var isMySqlAvailable = false;
 var lastMySqlError = null;
 function getDbDiagnostics() {
-  return {
-    isMySqlAvailable,
-    hasDatabaseUrl: !!process.env.DATABASE_URL,
-    mysqlSslFlag: process.env.MYSQL_SSL === "true",
-    lastMySqlError,
-    memTrucks: memData.logisticsTrucks,
-    isReset: memData.isReset
-  };
+  return { isMySqlAvailable, lastMySqlError };
 }
 var memData = {
   isReset: false,
@@ -1064,9 +1057,6 @@ async function updateUserProfile(profile) {
 
 // src/routes/api.ts
 var router = Router();
-router.get("/_debug", (req, res) => {
-  res.json(getDbDiagnostics());
-});
 router.post("/auth/register", async (req, res) => {
   try {
     const { email, password, name, role, location, organization, phone } = req.body;

@@ -29,16 +29,10 @@ let pool: mysql.Pool | null = null;
 let isMySqlAvailable = false;
 let lastMySqlError: string | null = null;
 
-// TEMPORARY diagnostic accessor (no secrets exposed) — remove once DB connectivity is confirmed stable.
+// Used by api-src/vercel-handler.ts to decide whether to retry the DB
+// connection on the next request instead of caching a permanent failure.
 export function getDbDiagnostics() {
-  return {
-    isMySqlAvailable,
-    hasDatabaseUrl: !!process.env.DATABASE_URL,
-    mysqlSslFlag: process.env.MYSQL_SSL === 'true',
-    lastMySqlError,
-    memTrucks: memData.logisticsTrucks,
-    isReset: memData.isReset,
-  };
+  return { isMySqlAvailable, lastMySqlError };
 }
 
 // In-memory MySQL compatibility state layer (fallback if external MySQL server is offline in sandbox)

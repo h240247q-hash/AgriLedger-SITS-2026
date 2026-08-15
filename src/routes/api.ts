@@ -36,16 +36,10 @@ import {
   deleteCustomCropOffer,
   addDeliveryPayout,
   addAgritexScan,
-  updateUserProfile,
-  getDbDiagnostics
+  updateUserProfile
 } from '../db/mysql.ts';
 
 const router = Router();
-
-// TEMPORARY diagnostic route — remove once investigation is complete.
-router.get('/_debug', (req, res) => {
-  res.json(getDbDiagnostics());
-});
 
 // POST /api/auth/register
 router.post('/auth/register', async (req, res) => {
