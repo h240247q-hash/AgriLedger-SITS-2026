@@ -8,7 +8,8 @@ import { Router } from "express";
 import mysql from "mysql2/promise";
 var MYSQL_CONFIG = process.env.DATABASE_URL ? {
   uri: process.env.DATABASE_URL,
-  connectTimeout: 8e3,
+  connectTimeout: 1e4,
+  connectionLimit: 1,
   ...process.env.MYSQL_SSL === "true" ? { ssl: { rejectUnauthorized: true } } : {}
 } : {
   host: process.env.MYSQL_HOST || "localhost",
@@ -16,7 +17,8 @@ var MYSQL_CONFIG = process.env.DATABASE_URL ? {
   user: process.env.MYSQL_USER || "root",
   password: process.env.MYSQL_PASSWORD || "password",
   database: process.env.MYSQL_DATABASE || "agriledger_db",
-  connectTimeout: 8e3,
+  connectTimeout: 1e4,
+  connectionLimit: 1,
   ...process.env.MYSQL_SSL === "true" ? { ssl: { rejectUnauthorized: true } } : {}
 };
 var pool = null;
@@ -572,9 +574,6 @@ async function resetDatabaseState() {
 
 // src/routes/api.ts
 var router = Router();
-router.get("/_debug", (req, res) => {
-  res.json(getDbDiagnostics());
-});
 router.post("/auth/register", async (req, res) => {
   try {
     const { email, password, name, role, location, organization, phone } = req.body;
@@ -949,12 +948,18 @@ var api_default = router;
 var app = express();
 app.use(express.json());
 app.use("/api", api_default);
-var dbInit = null;
-async function handler(req, res) {
-  if (!dbInit) {
-    dbInit = initDatabase();
+var dbInitPromise = null;
+async function ensureDb() {
+  if (!dbInitPromise) {
+    dbInitPromise = initDatabase();
   }
-  await dbInit;
+  await dbInitPromise;
+  if (!getDbDiagnostics().isMySqlAvailable) {
+    dbInitPromise = null;
+  }
+}
+async function handler(req, res) {
+  await ensureDb();
   app(req, res);
 }
 export {

@@ -4,10 +4,14 @@ import mysql from 'mysql2/promise';
 // Supports either a single connection string (DATABASE_URL, e.g. from
 // PlanetScale/TiDB Cloud/Railway) or discrete MYSQL_* vars for local/self-hosted MySQL.
 // Set MYSQL_SSL=true for hosted providers that require TLS.
+// connectionLimit is kept low deliberately: on serverless (Vercel), many
+// concurrent function instances can each open their own pool, and a high
+// per-instance limit multiplies quickly against a hosted DB's connection cap.
 const MYSQL_CONFIG: mysql.PoolOptions = process.env.DATABASE_URL
   ? {
       uri: process.env.DATABASE_URL,
-      connectTimeout: 8000,
+      connectTimeout: 10000,
+      connectionLimit: 1,
       ...(process.env.MYSQL_SSL === 'true' ? { ssl: { rejectUnauthorized: true } } : {}),
     }
   : {
@@ -16,7 +20,8 @@ const MYSQL_CONFIG: mysql.PoolOptions = process.env.DATABASE_URL
       user: process.env.MYSQL_USER || 'root',
       password: process.env.MYSQL_PASSWORD || 'password',
       database: process.env.MYSQL_DATABASE || 'agriledger_db',
-      connectTimeout: 8000,
+      connectTimeout: 10000,
+      connectionLimit: 1,
       ...(process.env.MYSQL_SSL === 'true' ? { ssl: { rejectUnauthorized: true } } : {}),
     };
 
