@@ -1,24 +1,33 @@
-import express from 'express';
-import apiRouter from '../src/routes/api.ts';
-import { initDatabase } from '../src/db/mysql.ts';
+// TEMPORARY diagnostic version: everything is loaded lazily inside the
+// handler's try/catch (including imports) so a module-load-time crash
+// gets reported as JSON instead of Vercel's opaque FUNCTION_INVOCATION_FAILED.
+let appPromise: Promise<any> | null = null;
 
-const app = express();
-app.use(express.json());
-app.use('/api', apiRouter);
+async function getApp() {
+  if (!appPromise) {
+    appPromise = (async () => {
+      const expressModule = await import('express');
+      const express = expressModule.default;
+      const { default: apiRouter } = await import('../src/routes/api.ts');
+      const { initDatabase } = await import('../src/db/mysql.ts');
 
-// Reused across warm invocations of this serverless function so the pool
-// (and its "is the real DB reachable" check) isn't re-established per request.
-let dbInit: Promise<void> | null = null;
+      const app = express();
+      app.use(express.json());
+      app.use('/api', apiRouter);
+
+      await initDatabase();
+      return app;
+    })();
+  }
+  return appPromise;
+}
 
 export default async function handler(req: any, res: any) {
   try {
-    if (!dbInit) {
-      dbInit = initDatabase();
-    }
-    await dbInit;
+    const app = await getApp();
     app(req, res);
   } catch (err: any) {
-    // TEMPORARY: surface the real error for debugging without dashboard log access.
+    appPromise = null;
     res.status(500).json({ error: err?.message || String(err), stack: err?.stack });
   }
 }
