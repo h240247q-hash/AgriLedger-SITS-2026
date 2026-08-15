@@ -36,6 +36,8 @@ export function getDbDiagnostics() {
     hasDatabaseUrl: !!process.env.DATABASE_URL,
     mysqlSslFlag: process.env.MYSQL_SSL === 'true',
     lastMySqlError,
+    memTrucks: memData.logisticsTrucks,
+    isReset: memData.isReset,
   };
 }
 

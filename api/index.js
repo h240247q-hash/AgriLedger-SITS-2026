@@ -29,7 +29,9 @@ function getDbDiagnostics() {
     isMySqlAvailable,
     hasDatabaseUrl: !!process.env.DATABASE_URL,
     mysqlSslFlag: process.env.MYSQL_SSL === "true",
-    lastMySqlError
+    lastMySqlError,
+    memTrucks: memData.logisticsTrucks,
+    isReset: memData.isReset
   };
 }
 var memData = {
@@ -1062,6 +1064,9 @@ async function updateUserProfile(profile) {
 
 // src/routes/api.ts
 var router = Router();
+router.get("/_debug", (req, res) => {
+  res.json(getDbDiagnostics());
+});
 router.post("/auth/register", async (req, res) => {
   try {
     const { email, password, name, role, location, organization, phone } = req.body;
