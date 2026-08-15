@@ -16,10 +16,16 @@ import {
   executeMarketDeal,
   resetDatabaseState,
   registerUser,
-  loginUser
+  loginUser,
+  getDbDiagnostics
 } from '../db/mysql.ts';
 
 const router = Router();
+
+// TEMPORARY diagnostic route — remove once DB connectivity is confirmed stable.
+router.get('/_debug', (req, res) => {
+  res.json(getDbDiagnostics());
+});
 
 // POST /api/auth/register
 router.post('/auth/register', async (req, res) => {

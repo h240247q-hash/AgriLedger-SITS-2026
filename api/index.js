@@ -21,6 +21,15 @@ var MYSQL_CONFIG = process.env.DATABASE_URL ? {
 };
 var pool = null;
 var isMySqlAvailable = false;
+var lastMySqlError = null;
+function getDbDiagnostics() {
+  return {
+    isMySqlAvailable,
+    hasDatabaseUrl: !!process.env.DATABASE_URL,
+    mysqlSslFlag: process.env.MYSQL_SSL === "true",
+    lastMySqlError
+  };
+}
 var memData = {
   isReset: false,
   users: [
@@ -183,6 +192,7 @@ async function initDatabase() {
     console.warn("\u26A0\uFE0F MySQL connection note:", err.message || err);
     console.log("\u{1F4A1} Running with embedded MySQL state store fallback for seamless preview execution.");
     isMySqlAvailable = false;
+    lastMySqlError = err?.message || String(err);
   }
 }
 async function getDbStats() {
@@ -562,6 +572,9 @@ async function resetDatabaseState() {
 
 // src/routes/api.ts
 var router = Router();
+router.get("/_debug", (req, res) => {
+  res.json(getDbDiagnostics());
+});
 router.post("/auth/register", async (req, res) => {
   try {
     const { email, password, name, role, location, organization, phone } = req.body;

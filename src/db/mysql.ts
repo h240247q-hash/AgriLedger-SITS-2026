@@ -22,6 +22,17 @@ const MYSQL_CONFIG: mysql.PoolOptions = process.env.DATABASE_URL
 
 let pool: mysql.Pool | null = null;
 let isMySqlAvailable = false;
+let lastMySqlError: string | null = null;
+
+// TEMPORARY diagnostic accessor (no secrets exposed) — remove once DB connectivity is confirmed stable.
+export function getDbDiagnostics() {
+  return {
+    isMySqlAvailable,
+    hasDatabaseUrl: !!process.env.DATABASE_URL,
+    mysqlSslFlag: process.env.MYSQL_SSL === 'true',
+    lastMySqlError,
+  };
+}
 
 // In-memory MySQL compatibility state layer (fallback if external MySQL server is offline in sandbox)
 let memData: {
@@ -207,6 +218,7 @@ export async function initDatabase() {
     console.warn('⚠️ MySQL connection note:', err.message || err);
     console.log('💡 Running with embedded MySQL state store fallback for seamless preview execution.');
     isMySqlAvailable = false;
+    lastMySqlError = err?.message || String(err);
   }
 }
 
