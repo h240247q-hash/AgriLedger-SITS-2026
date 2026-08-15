@@ -2,42 +2,62 @@ import React, { useState } from 'react';
 import { UserProfile, LogisticsTruck } from '../../types';
 import { Building2, Package, QrCode, Truck, Users, CheckCircle2, AlertCircle, ArrowUpRight, Plus, Minus, ShoppingCart, Send } from 'lucide-react';
 
+interface StockItem {
+  id: number;
+  name: string;
+  category: string;
+  count: number;
+  status: string;
+  threshold: string;
+}
+
+interface Receipt {
+  id: string;
+  farmer: string;
+  ward: string;
+  item: string;
+  time: string;
+  status: string;
+}
+
 interface DealerDashboardViewProps {
   currentUser: UserProfile;
   trucks: LogisticsTruck[];
   openModal: (modalId: string) => void;
   isReset?: boolean;
+  stockItems: StockItem[];
+  receipts: Receipt[];
+  registeredFarmers: number;
+  scanComplianceRate: number;
+  onAdjustStock: (id: number, delta: number) => void;
+  onAddStockItem: (name: string, category: string, count: number) => void;
+  onIssueReceipt: (farmer: string, ward: string, item: string, stockItemId: number, qty: number) => void;
+  onMarkReceiptIssued: (id: string) => void;
+  onAdjustMetric: (key: string, delta: number) => void;
+  onSetMetric: (key: string, value: number) => void;
 }
 
 export const DealerDashboardView: React.FC<DealerDashboardViewProps> = ({
   currentUser,
   trucks = [],
   openModal,
-  isReset = false,
+  stockItems = [],
+  receipts = [],
+  registeredFarmers,
+  scanComplianceRate,
+  onAdjustStock,
+  onAddStockItem,
+  onIssueReceipt,
+  onMarkReceiptIssued,
+  onAdjustMetric,
+  onSetMetric,
 }) => {
-  const [stockItems, setStockItems] = useState([
-    { id: 1, name: 'Compound D Fertilizer (50kg)', category: 'Basal Fertilizer', count: isReset ? 0 : 620, status: isReset ? 'Out of Stock' : 'In Stock', threshold: isReset ? 'Depleted' : 'Adequate' },
-    { id: 2, name: 'Ammonium Nitrate (50kg)', category: 'Top Dressing', count: isReset ? 0 : 480, status: isReset ? 'Out of Stock' : 'In Stock', threshold: isReset ? 'Depleted' : 'Adequate' },
-    { id: 3, name: 'Certified Maize Seed SC-719 (10kg)', category: 'Seeds', count: isReset ? 0 : 210, status: isReset ? 'Out of Stock' : 'Low Stock', threshold: isReset ? 'Depleted' : 'Reorder Sent' },
-    { id: 4, name: 'Glyphosate Chemical Concentrate (5L)', category: 'Herbicides', count: isReset ? 0 : 110, status: isReset ? 'Out of Stock' : 'In Stock', threshold: isReset ? 'Depleted' : 'Adequate' },
-  ]);
-
-  const [farmerPickups, setFarmerPickups] = useState(
-    isReset ? [] : [
-      { id: 'REC-102', farmer: 'Tafadzwa Moyo', ward: 'Ward 12', item: '2x Compound D (50kg)', time: '10:15 AM', status: 'Issued & QR Signed' },
-      { id: 'REC-103', farmer: 'Chipo Sibanda', ward: 'Ward 14', item: '1x Maize Seed (10kg)', time: '09:40 AM', status: 'Issued & QR Signed' },
-      { id: 'REC-104', farmer: 'Blessing Nyoni', ward: 'Ward 12', item: '2x Ammonium Nitrate', time: 'Just now', status: 'Pending Pickup' },
-    ]
-  );
-
-  const [registeredFarmers, setRegisteredFarmers] = useState<number>(isReset ? 0 : 480);
-  const [scanComplianceRate, setScanComplianceRate] = useState<number>(isReset ? 0.0 : 99.4);
   const [showIssueModal, setShowIssueModal] = useState<boolean>(false);
 
   // Form states for selling / issuing inputs to farmer
   const [issueFarmerName, setIssueFarmerName] = useState('Kudzai Mupotaringa');
   const [issueWard, setIssueWard] = useState('Ward 12');
-  const [issueSelectedItemId, setIssueSelectedItemId] = useState<number>(1);
+  const [issueSelectedItemId, setIssueSelectedItemId] = useState<number>(0);
   const [issueQty, setIssueQty] = useState<number>(2);
 
   // Form state for adding new stock line
@@ -48,45 +68,12 @@ export const DealerDashboardView: React.FC<DealerDashboardViewProps> = ({
 
   // Total warehouse stock calculated dynamically
   const totalStockBags = stockItems.reduce((acc, curr) => acc + curr.count, 0);
-
-  // Handle restock/buying inventory for product line
-  const handleRestock = (itemId: number, amount: number) => {
-    setStockItems((prev) =>
-      prev.map((item) => {
-        if (item.id === itemId) {
-          const newCount = item.count + amount;
-          return {
-            ...item,
-            count: newCount,
-            status: newCount < 250 ? 'Low Stock' : 'In Stock',
-          };
-        }
-        return item;
-      })
-    );
-  };
-
-  // Handle selling / issuing stock to farmer
-  const handleSellStock = (itemId: number, amount: number) => {
-    setStockItems((prev) =>
-      prev.map((item) => {
-        if (item.id === itemId) {
-          const newCount = Math.max(0, item.count - amount);
-          return {
-            ...item,
-            count: newCount,
-            status: newCount < 250 ? 'Low Stock' : 'In Stock',
-          };
-        }
-        return item;
-      })
-    );
-  };
+  const activeIssueItemId = issueSelectedItemId || stockItems[0]?.id || 0;
 
   // Handle issuing inputs to farmer (deducts stock and logs receipt)
   const handleIssueToFarmer = (e: React.FormEvent) => {
     e.preventDefault();
-    const targetItem = stockItems.find((i) => i.id === issueSelectedItemId);
+    const targetItem = stockItems.find((i) => i.id === activeIssueItemId);
     if (!targetItem) return;
 
     if (targetItem.count < issueQty) {
@@ -94,46 +81,16 @@ export const DealerDashboardView: React.FC<DealerDashboardViewProps> = ({
       return;
     }
 
-    // Deduct stock
-    handleSellStock(issueSelectedItemId, issueQty);
-
-    // Add pickup receipt
-    const newReceipt = {
-      id: `REC-${Math.floor(100 + Math.random() * 900)}`,
-      farmer: issueFarmerName,
-      ward: issueWard,
-      item: `${issueQty}x ${targetItem.name}`,
-      time: 'Just now',
-      status: 'Issued & QR Signed',
-    };
-
-    setFarmerPickups((prev) => [newReceipt, ...prev]);
+    onIssueReceipt(issueFarmerName, issueWard, `${issueQty}x ${targetItem.name}`, activeIssueItemId, issueQty);
     setShowIssueModal(false);
     alert(`✅ Inputs Successfully Issued!\n${issueQty}x ${targetItem.name} issued to ${issueFarmerName} (${issueWard}).\nWarehouse Stock updated automatically.`);
-  };
-
-  // Handle pending pickup fulfillment
-  const handleIssuePickup = (recId: string) => {
-    setFarmerPickups((prev) =>
-      prev.map((p) =>
-        p.id === recId ? { ...p, status: 'Issued & QR Signed', time: 'Just now' } : p
-      )
-    );
   };
 
   // Add new product line to warehouse
   const handleAddProductLine = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newProdName.trim()) return;
-    const newItem = {
-      id: Date.now(),
-      name: newProdName,
-      category: newProdCat,
-      count: newProdCount,
-      status: newProdCount < 250 ? 'Low Stock' : 'In Stock',
-      threshold: 'Adequate',
-    };
-    setStockItems((prev) => [...prev, newItem]);
+    onAddStockItem(newProdName, newProdCat, newProdCount);
     setNewProdName('');
     setShowAddProduct(false);
   };
@@ -217,7 +174,7 @@ export const DealerDashboardView: React.FC<DealerDashboardViewProps> = ({
             <div className="flex items-baseline justify-between">
               <div className="text-xl font-extrabold text-slate-900 font-mono">{registeredFarmers} Accounts</div>
               <button
-                onClick={() => setRegisteredFarmers((prev) => prev + 1)}
+                onClick={() => onAdjustMetric('registered_farmers', 1)}
                 className="px-2 py-0.5 text-[10px] font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded cursor-pointer"
               >
                 + Register
@@ -239,7 +196,7 @@ export const DealerDashboardView: React.FC<DealerDashboardViewProps> = ({
             <div className="flex items-baseline justify-between">
               <div className="text-xl font-extrabold text-slate-900 font-mono">{scanComplianceRate.toFixed(1)}%</div>
               <button
-                onClick={() => setScanComplianceRate(100.0)}
+                onClick={() => onSetMetric('scan_compliance_rate', 100.0)}
                 className="px-2 py-0.5 text-[10px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded cursor-pointer"
               >
                 Verify All
@@ -293,7 +250,7 @@ export const DealerDashboardView: React.FC<DealerDashboardViewProps> = ({
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1">Select Product Line</label>
                 <select
-                  value={issueSelectedItemId}
+                  value={activeIssueItemId}
                   onChange={(e) => setIssueSelectedItemId(Number(e.target.value))}
                   className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg text-slate-900 outline-none bg-white font-medium"
                 >
@@ -452,14 +409,14 @@ export const DealerDashboardView: React.FC<DealerDashboardViewProps> = ({
                       <td className="py-3 px-3 text-center">
                         <div className="flex items-center justify-center gap-1">
                           <button
-                            onClick={() => handleRestock(item.id, 50)}
+                            onClick={() => onAdjustStock(item.id, 50)}
                             className="px-2 py-1 text-[10px] font-bold bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 rounded cursor-pointer transition-colors"
                             title="Restock +50 Bags"
                           >
                             +50 Restock
                           </button>
                           <button
-                            onClick={() => handleSellStock(item.id, 10)}
+                            onClick={() => onAdjustStock(item.id, -10)}
                             className="px-2 py-1 text-[10px] font-bold bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200 rounded cursor-pointer transition-colors"
                             title="Sell / Issue -10 Bags"
                           >
@@ -494,7 +451,7 @@ export const DealerDashboardView: React.FC<DealerDashboardViewProps> = ({
             </div>
 
             <div className="divide-y divide-slate-100">
-              {farmerPickups.map((p) => (
+              {receipts.map((p) => (
                 <div key={p.id} className="py-3 flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded bg-emerald-50 text-emerald-700 font-bold text-xs flex items-center justify-center border border-emerald-100">
@@ -511,7 +468,7 @@ export const DealerDashboardView: React.FC<DealerDashboardViewProps> = ({
                   <div className="text-right flex items-center gap-2">
                     {p.status === 'Pending Pickup' ? (
                       <button
-                        onClick={() => handleIssuePickup(p.id)}
+                        onClick={() => onMarkReceiptIssued(p.id)}
                         className="px-2.5 py-1 text-xs font-bold text-white bg-blue-600 hover:bg-blue-500 rounded cursor-pointer transition-colors flex items-center gap-1 shadow-2xs"
                       >
                         <CheckCircle2 className="w-3 h-3" />
@@ -592,4 +549,3 @@ export const DealerDashboardView: React.FC<DealerDashboardViewProps> = ({
     </div>
   );
 };
-

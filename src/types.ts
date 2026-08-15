@@ -69,6 +69,8 @@ export interface CustomCropOffer {
   cropName: string;
   askingPrice: number;
   status: string;
+  quantity?: string;
+  buyers?: string;
   createdAt?: string;
 }
 

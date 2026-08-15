@@ -16,7 +16,27 @@ import {
   executeMarketDeal,
   resetDatabaseState,
   registerUser,
-  loginUser
+  loginUser,
+  getDealerStock,
+  addDealerStockItem,
+  adjustDealerStock,
+  getDealerReceipts,
+  addDealerReceipt,
+  markReceiptIssued,
+  getMetrics,
+  adjustMetric,
+  setMetric,
+  getProductionBatches,
+  addProductionBatch,
+  getDepotOrders,
+  addDepotOrder,
+  getFarmerVouchers,
+  addFarmerVoucher,
+  verifyFarmerVoucher,
+  deleteCustomCropOffer,
+  addDeliveryPayout,
+  addAgritexScan,
+  updateUserProfile
 } from '../db/mysql.ts';
 
 const router = Router();
@@ -380,12 +400,22 @@ router.get('/market/custom-crops', async (req, res) => {
 // POST /api/market/custom-crops
 router.post('/market/custom-crops', async (req, res) => {
   try {
-    const { cropName, askingPrice } = req.body;
+    const { cropName, askingPrice, quantity, buyers, status } = req.body;
     if (!cropName || !askingPrice) {
       return res.status(400).json({ error: 'Crop name and price required' });
     }
-    const offer = await addCustomCropOffer(cropName, parseFloat(askingPrice));
+    const offer = await addCustomCropOffer(cropName, parseFloat(askingPrice), { quantity, buyers, status });
     res.json(offer);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/market/custom-crops/:id
+router.delete('/market/custom-crops/:id', async (req, res) => {
+  try {
+    const result = await deleteCustomCropOffer(Number(req.params.id));
+    res.json(result);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -453,6 +483,271 @@ router.post('/reset', async (req, res) => {
   try {
     await resetDatabaseState();
     res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Dealer: warehouse stock
+// ---------------------------------------------------------------------------
+
+// GET /api/dealer/stock
+router.get('/dealer/stock', async (req, res) => {
+  try {
+    res.json(await getDealerStock());
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/dealer/stock
+router.post('/dealer/stock', async (req, res) => {
+  try {
+    const { name, category, count } = req.body;
+    if (!name || !category) {
+      return res.status(400).json({ error: 'Product name and category required' });
+    }
+    const item = await addDealerStockItem({ name, category, count: Number(count) || 0 });
+    res.json(item);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/dealer/stock/:id/adjust
+router.put('/dealer/stock/:id/adjust', async (req, res) => {
+  try {
+    const { delta } = req.body;
+    if (typeof delta !== 'number') {
+      return res.status(400).json({ error: 'Numeric delta required' });
+    }
+    const item = await adjustDealerStock(Number(req.params.id), delta);
+    res.json(item);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Dealer: farmer distribution receipts
+// ---------------------------------------------------------------------------
+
+// GET /api/dealer/receipts
+router.get('/dealer/receipts', async (req, res) => {
+  try {
+    res.json(await getDealerReceipts());
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/dealer/receipts
+router.post('/dealer/receipts', async (req, res) => {
+  try {
+    const { farmer, ward, item, status } = req.body;
+    if (!farmer || !ward || !item) {
+      return res.status(400).json({ error: 'Farmer, ward, and item required' });
+    }
+    const receipt = await addDealerReceipt({ farmer, ward, item, status });
+    res.json(receipt);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/dealer/receipts/:id/issue
+router.put('/dealer/receipts/:id/issue', async (req, res) => {
+  try {
+    const receipt = await markReceiptIssued(req.params.id);
+    res.json(receipt);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Generic metrics (dealer + supplier dashboard counters)
+// ---------------------------------------------------------------------------
+
+// GET /api/metrics?keys=a,b,c
+router.get('/metrics', async (req, res) => {
+  try {
+    const keys = String(req.query.keys || '').split(',').filter(Boolean);
+    if (keys.length === 0) {
+      return res.status(400).json({ error: 'keys query param required' });
+    }
+    res.json(await getMetrics(keys));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/metrics/:key/adjust
+router.put('/metrics/:key/adjust', async (req, res) => {
+  try {
+    const { delta } = req.body;
+    if (typeof delta !== 'number') {
+      return res.status(400).json({ error: 'Numeric delta required' });
+    }
+    const value = await adjustMetric(req.params.key, delta);
+    res.json({ key: req.params.key, value });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/metrics/:key
+router.put('/metrics/:key', async (req, res) => {
+  try {
+    const { value } = req.body;
+    if (typeof value !== 'number') {
+      return res.status(400).json({ error: 'Numeric value required' });
+    }
+    await setMetric(req.params.key, value);
+    res.json({ key: req.params.key, value });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Supplier: production batches
+// ---------------------------------------------------------------------------
+
+// GET /api/supplier/batches
+router.get('/supplier/batches', async (req, res) => {
+  try {
+    res.json(await getProductionBatches());
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/supplier/batches
+router.post('/supplier/batches', async (req, res) => {
+  try {
+    const { product, quantity, plant } = req.body;
+    if (!product || !quantity || !plant) {
+      return res.status(400).json({ error: 'Product, quantity, and plant required' });
+    }
+    const batch = await addProductionBatch({ product, quantity: Number(quantity), plant });
+    res.json(batch);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Supplier: depot bulk orders
+// ---------------------------------------------------------------------------
+
+// GET /api/supplier/depot-orders
+router.get('/supplier/depot-orders', async (req, res) => {
+  try {
+    res.json(await getDepotOrders());
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/supplier/depot-orders
+router.post('/supplier/depot-orders', async (req, res) => {
+  try {
+    const { depot, item, status } = req.body;
+    if (!depot) {
+      return res.status(400).json({ error: 'Depot name required' });
+    }
+    const order = await addDepotOrder({ depot, item, status });
+    res.json(order);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Farmer: input voucher allocations
+// ---------------------------------------------------------------------------
+
+// GET /api/farmer/vouchers
+router.get('/farmer/vouchers', async (req, res) => {
+  try {
+    res.json(await getFarmerVouchers());
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/farmer/vouchers
+router.post('/farmer/vouchers', async (req, res) => {
+  try {
+    const { item } = req.body;
+    const voucher = await addFarmerVoucher(item || 'Foliar Bio-Stimulant Pack (5L)');
+    res.json(voucher);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/farmer/vouchers/:id/verify
+router.put('/farmer/vouchers/:id/verify', async (req, res) => {
+  try {
+    const voucher = await verifyFarmerVoucher(req.params.id);
+    res.json(voucher);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Delivery / payout weigh-ins
+// ---------------------------------------------------------------------------
+
+// POST /api/delivery/payout
+router.post('/delivery/payout', async (req, res) => {
+  try {
+    const { farmerAllocationId, netWeightTons } = req.body;
+    if (!farmerAllocationId || !netWeightTons) {
+      return res.status(400).json({ error: 'Farmer allocation ID and net weight required' });
+    }
+    const payout = await addDeliveryPayout({ farmerAllocationId, netWeightTons: parseFloat(netWeightTons) });
+    res.json(payout);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Agritex donated-batch QR scan
+// ---------------------------------------------------------------------------
+
+// POST /api/agritex/scan
+router.post('/agritex/scan', async (req, res) => {
+  try {
+    const { code } = req.body;
+    if (!code) {
+      return res.status(400).json({ error: 'QR code required' });
+    }
+    const log = await addAgritexScan(code);
+    res.json({ success: true, log });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// User profile update
+// ---------------------------------------------------------------------------
+
+// PUT /api/users/profile
+router.put('/users/profile', async (req, res) => {
+  try {
+    const { email, name, phone, role, location, organization, district } = req.body;
+    if (!email || !name || !location || !role) {
+      return res.status(400).json({ error: 'Email, name, role, and location required' });
+    }
+    const result = await updateUserProfile({ email, name, phone, role, location, organization, district });
+    res.json(result);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

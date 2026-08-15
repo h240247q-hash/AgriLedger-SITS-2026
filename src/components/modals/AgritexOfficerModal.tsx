@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { agritexBroadcastSMS, agritexConfirmOTP } from '../../api/client';
+import { agritexBroadcastSMS, agritexConfirmOTP, addAgritexScanApi } from '../../api/client';
 import { Farmer } from '../../types';
 
 interface AgritexOfficerModalProps {
@@ -66,14 +66,20 @@ export const AgritexOfficerModal: React.FC<AgritexOfficerModalProps> = ({
     }
   };
 
-  const handleScanQr = () => {
+  const handleScanQr = async () => {
     if (!qrInput.trim()) {
       alert('Please enter or scan a QR code.');
       return;
     }
+    const code = qrInput.trim();
     const timeStr = new Date().toTimeString().split(' ')[0];
-    setScannedItems([{ code: qrInput.trim(), time: timeStr }, ...scannedItems]);
+    setScannedItems([{ code, time: timeStr }, ...scannedItems]);
     setQrInput('');
+    try {
+      await addAgritexScanApi(code);
+    } catch (err) {
+      // Scan is already reflected locally; DB logging failure shouldn't block the officer's workflow.
+    }
   };
 
   const handleStep3Confirm = async () => {

@@ -33,7 +33,36 @@ import {
   fetchCustomCrops,
   resetSystemData,
   approveDelivery,
+  fetchDealerStock,
+  addDealerStockItemApi,
+  adjustDealerStockApi,
+  fetchDealerReceipts,
+  addDealerReceiptApi,
+  markReceiptIssuedApi,
+  fetchMetrics,
+  adjustMetricApi,
+  setMetricApi,
+  fetchProductionBatches,
+  addProductionBatchApi,
+  fetchDepotOrders,
+  addDepotOrderApi,
+  fetchFarmerVouchers,
+  addFarmerVoucherApi,
+  verifyFarmerVoucherApi,
+  createCustomCrop,
+  deleteCustomCropApi,
+  updateUserProfileApi,
 } from './api/client';
+
+const METRIC_KEYS = [
+  'registered_farmers',
+  'scan_compliance_rate',
+  'extra_production_tons',
+  'connected_hubs',
+  'on_time_deliveries',
+  'total_deliveries',
+  'farmer_ussd_balance',
+];
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
@@ -61,6 +90,13 @@ export default function App() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [cropOffers, setCropOffers] = useState<CustomCropOffer[]>([]);
 
+  const [dealerStock, setDealerStock] = useState<any[]>([]);
+  const [dealerReceipts, setDealerReceipts] = useState<any[]>([]);
+  const [productionBatches, setProductionBatches] = useState<any[]>([]);
+  const [depotOrders, setDepotOrders] = useState<any[]>([]);
+  const [farmerVouchers, setFarmerVouchers] = useState<any[]>([]);
+  const [metrics, setMetrics] = useState<Record<string, number>>({});
+
   const [smsNotification, setSmsNotification] = useState<string | null>(null);
   const [smsTimestamp, setSmsTimestamp] = useState<string>('JUST NOW');
   const [resetKey, setResetKey] = useState<number>(0);
@@ -68,13 +104,19 @@ export default function App() {
 
   const loadData = useCallback(async () => {
     try {
-      const [sData, aData, lData, fData, supData, cData] = await Promise.all([
+      const [sData, aData, lData, fData, supData, cData, dsData, drData, pbData, doData, fvData, mData] = await Promise.all([
         fetchStats(),
         fetchActivityLogs(),
         fetchLogistics(),
         fetchFarmers(),
         fetchSuppliers(),
         fetchCustomCrops(),
+        fetchDealerStock(),
+        fetchDealerReceipts(),
+        fetchProductionBatches(),
+        fetchDepotOrders(),
+        fetchFarmerVouchers(),
+        fetchMetrics(METRIC_KEYS),
       ]);
       setStats(sData);
       setActivityLogs(aData);
@@ -82,6 +124,12 @@ export default function App() {
       setFarmers(fData);
       setSuppliers(supData);
       setCropOffers(cData);
+      setDealerStock(dsData);
+      setDealerReceipts(drData);
+      setProductionBatches(pbData);
+      setDepotOrders(doData);
+      setFarmerVouchers(fvData);
+      setMetrics(mData);
     } catch (e) {
       console.error('Failed to load dashboard data:', e);
     }
@@ -109,11 +157,24 @@ export default function App() {
     setIsAuthenticated(false);
   };
 
-  // Handle updating user profile
-  const handleUpdateProfile = (updatedProfile: UserProfile) => {
+  // Handle updating user profile (persists to the users table, matched/upserted by email)
+  const handleUpdateProfile = async (updatedProfile: UserProfile) => {
     setCurrentUser(updatedProfile);
     if (updatedProfile.role !== currentRole) {
       setCurrentRole(updatedProfile.role);
+    }
+    try {
+      await updateUserProfileApi({
+        email: updatedProfile.email,
+        name: updatedProfile.name,
+        phone: updatedProfile.phone,
+        role: updatedProfile.role,
+        location: updatedProfile.location,
+        organization: updatedProfile.organization,
+        district: updatedProfile.district,
+      });
+    } catch (e) {
+      console.error('Failed to persist profile update:', e);
     }
   };
 
@@ -155,6 +216,119 @@ export default function App() {
     setSmsNotification(msg);
     setSmsTimestamp(new Date().toTimeString().split(' ')[0]);
     loadData();
+  };
+
+  // ---- Dealer handlers ----
+  const handleAdjustStock = async (id: number, delta: number) => {
+    try {
+      await adjustDealerStockApi(id, delta);
+      await loadData();
+    } catch (e) {
+      console.error('Failed to adjust stock:', e);
+    }
+  };
+
+  const handleAddStockItem = async (name: string, category: string, count: number) => {
+    try {
+      await addDealerStockItemApi(name, category, count);
+      await loadData();
+    } catch (e) {
+      console.error('Failed to add stock item:', e);
+    }
+  };
+
+  const handleIssueReceipt = async (farmer: string, ward: string, item: string, stockItemId: number, qty: number) => {
+    try {
+      await adjustDealerStockApi(stockItemId, -qty);
+      await addDealerReceiptApi(farmer, ward, item);
+      await loadData();
+    } catch (e) {
+      console.error('Failed to issue receipt:', e);
+    }
+  };
+
+  const handleMarkReceiptIssued = async (id: string) => {
+    try {
+      await markReceiptIssuedApi(id);
+      await loadData();
+    } catch (e) {
+      console.error('Failed to mark receipt issued:', e);
+    }
+  };
+
+  // ---- Shared metric handler (dealer + supplier counters) ----
+  const handleAdjustMetric = async (key: string, delta: number) => {
+    try {
+      await adjustMetricApi(key, delta);
+      await loadData();
+    } catch (e) {
+      console.error('Failed to adjust metric:', e);
+    }
+  };
+
+  const handleSetMetric = async (key: string, value: number) => {
+    try {
+      await setMetricApi(key, value);
+      await loadData();
+    } catch (e) {
+      console.error('Failed to set metric:', e);
+    }
+  };
+
+  // ---- Supplier handlers ----
+  const handleAddBatch = async (product: string, quantity: number, plant: string) => {
+    try {
+      await addProductionBatchApi(product, quantity, plant);
+      await loadData();
+    } catch (e) {
+      console.error('Failed to log production batch:', e);
+    }
+  };
+
+  const handleAddDepotOrder = async (depot: string, item?: string, status?: string) => {
+    try {
+      await addDepotOrderApi(depot, item, status);
+      await loadData();
+    } catch (e) {
+      console.error('Failed to connect depot hub:', e);
+    }
+  };
+
+  // ---- Farmer handlers ----
+  const handleAddVoucher = async (item: string) => {
+    try {
+      await addFarmerVoucherApi(item);
+      await loadData();
+    } catch (e) {
+      console.error('Failed to add voucher package:', e);
+    }
+  };
+
+  const handleVerifyVoucher = async (id: string) => {
+    try {
+      await verifyFarmerVoucherApi(id);
+      await loadData();
+    } catch (e) {
+      console.error('Failed to verify voucher:', e);
+    }
+  };
+
+  const handlePostCrop = async (cropName: string, askingPrice: number, quantity: string) => {
+    try {
+      await createCustomCrop(cropName, askingPrice, quantity);
+      await loadData();
+    } catch (e) {
+      console.error('Failed to post crop offer:', e);
+    }
+  };
+
+  const handleDeleteCropOffer = async (id: number) => {
+    try {
+      await deleteCustomCropApi(id);
+      await loadData();
+    } catch (e) {
+      console.error('Failed to delete crop offer:', e);
+    }
   };
 
   const openModal = (modalId: string) => setActiveModal(modalId);
@@ -243,6 +417,16 @@ export default function App() {
               currentUser={currentUser}
               openModal={openModal}
               isReset={isSystemReset}
+              vouchers={farmerVouchers}
+              cropOffers={cropOffers}
+              activityLogs={activityLogs}
+              ussdBalance={metrics.farmer_ussd_balance || 0}
+              onAddVoucher={handleAddVoucher}
+              onVerifyVoucher={handleVerifyVoucher}
+              onPostCrop={handlePostCrop}
+              onDeleteCropOffer={handleDeleteCropOffer}
+              onTopUpWallet={(amount) => handleAdjustMetric('farmer_ussd_balance', amount)}
+              onUpdateProfile={handleUpdateProfile}
             />
           )}
 
@@ -253,6 +437,16 @@ export default function App() {
               trucks={trucks}
               openModal={openModal}
               isReset={isSystemReset}
+              stockItems={dealerStock}
+              receipts={dealerReceipts}
+              registeredFarmers={metrics.registered_farmers || 0}
+              scanComplianceRate={metrics.scan_compliance_rate || 0}
+              onAdjustStock={handleAdjustStock}
+              onAddStockItem={handleAddStockItem}
+              onIssueReceipt={handleIssueReceipt}
+              onMarkReceiptIssued={handleMarkReceiptIssued}
+              onAdjustMetric={handleAdjustMetric}
+              onSetMetric={handleSetMetric}
             />
           )}
 
@@ -263,7 +457,15 @@ export default function App() {
               trucks={trucks}
               openModal={openModal}
               onApproveTruck={handleApproveTruck}
-              isReset={isSystemReset}
+              productionBatches={productionBatches}
+              depotOrders={depotOrders}
+              extraProductionTons={metrics.extra_production_tons || 0}
+              connectedHubs={metrics.connected_hubs || 0}
+              onTimeDeliveriesCount={metrics.on_time_deliveries || 0}
+              totalDeliveriesCount={metrics.total_deliveries || 0}
+              onAddBatch={handleAddBatch}
+              onAddDepotOrder={handleAddDepotOrder}
+              onAdjustMetric={handleAdjustMetric}
             />
           )}
 
@@ -343,7 +545,7 @@ export default function App() {
         onUpdateProfile={handleUpdateProfile}
         onLogout={handleLogout}
       />
-      <DeliveryModal isOpen={activeModal === 'deliveryModal'} onClose={closeModal} />
+      <DeliveryModal isOpen={activeModal === 'deliveryModal'} onClose={closeModal} onSuccess={loadData} />
       <USSDModal
         isOpen={activeModal === 'ussdModal'}
         onClose={closeModal}

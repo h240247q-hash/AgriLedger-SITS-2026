@@ -3,12 +3,39 @@ import { UserProfile, LogisticsTruck } from '../../types';
 import { Truck, Factory, QrCode, MapPin, CheckCircle2, ShieldCheck, ArrowRight, Plus, Building, Send } from 'lucide-react';
 import { HubSalesGeoMapWidget } from '../HubSalesGeoMapWidget';
 
+interface ProductionBatch {
+  id?: number;
+  batchCode: string;
+  product: string;
+  quantity: number;
+  qrSerialRange: string;
+  plant: string;
+  status: string;
+}
+
+interface DepotOrder {
+  id: string;
+  depot: string;
+  item: string;
+  date: string;
+  status: string;
+}
+
 interface SupplierDashboardViewProps {
   currentUser: UserProfile;
   trucks: LogisticsTruck[];
   openModal: (modalId: string) => void;
   onApproveTruck?: (truckId: string) => void;
   isReset?: boolean;
+  productionBatches: ProductionBatch[];
+  depotOrders: DepotOrder[];
+  extraProductionTons: number;
+  connectedHubs: number;
+  onTimeDeliveriesCount: number;
+  totalDeliveriesCount: number;
+  onAddBatch: (product: string, quantity: number, plant: string) => void;
+  onAddDepotOrder: (depot: string, item?: string, status?: string) => void;
+  onAdjustMetric: (key: string, delta: number) => void;
 }
 
 export const SupplierDashboardView: React.FC<SupplierDashboardViewProps> = ({
@@ -16,30 +43,16 @@ export const SupplierDashboardView: React.FC<SupplierDashboardViewProps> = ({
   trucks = [],
   openModal,
   onApproveTruck,
-  isReset = false,
+  productionBatches = [],
+  depotOrders = [],
+  extraProductionTons,
+  connectedHubs,
+  onTimeDeliveriesCount,
+  totalDeliveriesCount,
+  onAddBatch,
+  onAddDepotOrder,
+  onAdjustMetric,
 }) => {
-  const [productionBatches, setProductionBatches] = useState(
-    isReset ? [] : [
-      { batchCode: 'BATCH-2026-CMPD-9912', product: 'Compound D Fertilizer', quantity: 10000, qrSerialRange: 'QR-9912-0001 ➔ 20000', plant: 'Msasa Plant 1', status: 'Sealed & Certified' },
-      { batchCode: 'BATCH-2026-AN-7741', product: 'Top Dressing Ammonium Nitrate', quantity: 8500, qrSerialRange: 'QR-7741-0001 ➔ 17000', plant: 'Msasa Plant 2', status: 'In Dispatch Queue' },
-      { batchCode: 'BATCH-2026-SEED-3301', product: 'Certified Maize Seed SC-719', quantity: 4000, qrSerialRange: 'QR-3301-0001 ➔ 8000', plant: 'Kadoma Facility', status: 'Sealed & Certified' },
-    ]
-  );
-
-  const [depotOrders, setDepotOrders] = useState(
-    isReset ? [] : [
-      { orderId: 'ORD-901', depot: 'Gweru Industrial Depot', item: '400 Bags Compound D', date: 'Today', status: 'Dispatch Approved' },
-      { orderId: 'ORD-902', depot: 'Murehwa Central Depot', item: '250 Bags Ammonium Nitrate', date: 'Today', status: 'Loading onto Truck' },
-      { orderId: 'ORD-903', depot: 'Bindura Agro-Hub', item: '150 Bags Seed Co Maize', date: 'Yesterday', status: 'Delivered' },
-    ]
-  );
-
-  // Dynamic Metrics State
-  const [extraProductionTons, setExtraProductionTons] = useState<number>(isReset ? 0 : 2500);
-  const [connectedHubs, setConnectedHubs] = useState<number>(isReset ? 0 : 142);
-  const [onTimeDeliveriesCount, setOnTimeDeliveriesCount] = useState<number>(isReset ? 0 : 128);
-  const [totalDeliveriesCount, setTotalDeliveriesCount] = useState<number>(isReset ? 0 : 135);
-
   // Form Modals State
   const [showLogBatchModal, setShowLogBatchModal] = useState<boolean>(false);
   const [showConnectHubModal, setShowConnectHubModal] = useState<boolean>(false);
@@ -60,21 +73,12 @@ export const SupplierDashboardView: React.FC<SupplierDashboardViewProps> = ({
   const activeTruckCount = (trucks || []).length > 0 ? trucks.length : 12;
 
   // Dynamically calculated delivery rate
-  const deliveryScheduleRate = ((onTimeDeliveriesCount / totalDeliveriesCount) * 100).toFixed(1);
+  const deliveryScheduleRate = totalDeliveriesCount > 0 ? ((onTimeDeliveriesCount / totalDeliveriesCount) * 100).toFixed(1) : '0.0';
 
   // Handle adding new production batch
   const handleLogNewBatch = (e: React.FormEvent) => {
     e.preventDefault();
-    const batchCode = `BATCH-2026-${Math.floor(1000 + Math.random() * 9000)}`;
-    const newBatch = {
-      batchCode,
-      product: batchProduct,
-      quantity: batchTons,
-      qrSerialRange: `QR-${Math.floor(1000 + Math.random() * 9000)}-0001 ➔ ${batchTons * 2}`,
-      plant: batchPlant,
-      status: 'Sealed & Certified',
-    };
-    setProductionBatches((prev) => [newBatch, ...prev]);
+    onAddBatch(batchProduct, batchTons, batchPlant);
     setShowLogBatchModal(false);
     alert(`🏭 Production Batch Logged!\n${batchTons.toLocaleString()} Tons of ${batchProduct} produced at ${batchPlant}.\nFactory Production metric updated!`);
   };
@@ -83,17 +87,8 @@ export const SupplierDashboardView: React.FC<SupplierDashboardViewProps> = ({
   const handleConnectHub = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newHubName.trim()) return;
-    setConnectedHubs((prev) => prev + 1);
-    setDepotOrders((prev) => [
-      {
-        orderId: `ORD-${Math.floor(100 + Math.random() * 900)}`,
-        depot: `${newHubName} Depot (${newHubDistrict || 'National'})`,
-        item: '500 Bags Basal & Seed Order',
-        date: 'Just now',
-        status: 'Connected & Active',
-      },
-      ...prev,
-    ]);
+    onAdjustMetric('connected_hubs', 1);
+    onAddDepotOrder(`${newHubName} Depot (${newHubDistrict || 'National'})`, '500 Bags Basal & Seed Order', 'Connected & Active');
     setShowConnectHubModal(false);
     setNewHubName('');
     setNewHubDistrict('');
@@ -152,7 +147,7 @@ export const SupplierDashboardView: React.FC<SupplierDashboardViewProps> = ({
                 {totalProductionTons.toLocaleString()} Tons
               </div>
               <button
-                onClick={() => setExtraProductionTons((prev) => prev + 1000)}
+                onClick={() => onAdjustMetric('extra_production_tons', 1000)}
                 className="px-2 py-0.5 text-[10px] font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded cursor-pointer transition-colors"
                 title="Log +1,000 Tons"
               >
@@ -200,8 +195,8 @@ export const SupplierDashboardView: React.FC<SupplierDashboardViewProps> = ({
               <div className="text-xl font-extrabold text-slate-900 font-mono">{deliveryScheduleRate}%</div>
               <button
                 onClick={() => {
-                  setOnTimeDeliveriesCount((prev) => prev + 1);
-                  setTotalDeliveriesCount((prev) => prev + 1);
+                  onAdjustMetric('on_time_deliveries', 1);
+                  onAdjustMetric('total_deliveries', 1);
                 }}
                 className="px-2 py-0.5 text-[10px] font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded cursor-pointer transition-colors"
               >
@@ -236,7 +231,7 @@ export const SupplierDashboardView: React.FC<SupplierDashboardViewProps> = ({
       </div>
 
       {/* Live Regional Hub Sales & Geo Location Map */}
-      <HubSalesGeoMapWidget openModal={openModal} isReset={isReset} />
+      <HubSalesGeoMapWidget openModal={openModal} isReset={false} />
 
       {/* Modal 1: Log Factory Production Batch */}
       {showLogBatchModal && (
@@ -521,10 +516,10 @@ export const SupplierDashboardView: React.FC<SupplierDashboardViewProps> = ({
 
             <div className="space-y-3">
               {depotOrders.map((ord) => (
-                <div key={ord.orderId} className="p-3 border border-slate-200 rounded-md bg-slate-50">
+                <div key={ord.id} className="p-3 border border-slate-200 rounded-md bg-slate-50">
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-xs font-bold text-slate-900">{ord.depot}</span>
-                    <span className="text-[10px] font-mono font-bold text-blue-600">{ord.orderId}</span>
+                    <span className="text-[10px] font-mono font-bold text-blue-600">{ord.id}</span>
                   </div>
                   <p className="text-[11px] text-slate-600">{ord.item}</p>
                   <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-200 text-[10px]">
@@ -558,4 +553,3 @@ export const SupplierDashboardView: React.FC<SupplierDashboardViewProps> = ({
     </div>
   );
 };
-

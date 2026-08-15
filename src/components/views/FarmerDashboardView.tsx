@@ -1,125 +1,80 @@
 import React, { useState } from 'react';
-import { UserProfile } from '../../types';
+import { UserProfile, ActivityLog, CustomCropOffer } from '../../types';
 import { Sprout, QrCode, Smartphone, ShoppingBag, Bell, AlertTriangle, ArrowUpRight, CheckCircle2 } from 'lucide-react';
+
+interface FarmerVoucher {
+  id: string;
+  item: string;
+  status: string;
+  batch: string;
+  qr: string;
+}
 
 interface FarmerDashboardViewProps {
   currentUser: UserProfile;
   openModal: (modalId: string) => void;
-  onAddCropOffer?: (offer: { cropName: string; askingPrice: number }) => void;
   isReset?: boolean;
+  vouchers: FarmerVoucher[];
+  cropOffers: CustomCropOffer[];
+  activityLogs: ActivityLog[];
+  ussdBalance: number;
+  onAddVoucher: (item: string) => void;
+  onVerifyVoucher: (id: string) => void;
+  onPostCrop: (cropName: string, askingPrice: number, quantity: string) => void;
+  onDeleteCropOffer: (id: number) => void;
+  onTopUpWallet: (amount: number) => void;
+  onUpdateProfile: (updatedProfile: UserProfile) => void;
+}
+
+function activityIcon(log: ActivityLog): string {
+  const t = log.typeDetails.toLowerCase();
+  if (log.status === 'fraud-risk') return '🚨';
+  if (t.includes('verified') || t.includes('verify')) return '✅';
+  if (t.includes('allocation') || t.includes('voucher')) return '🎟️';
+  if (t.includes('crop') || t.includes('sold') || t.includes('deal')) return '🌾';
+  if (t.includes('top-up') || t.includes('ussd') || t.includes('wallet')) return '💳';
+  if (t.includes('cooperative') || t.includes('hub')) return '🏫';
+  if (t.includes('registered')) return '🌱';
+  return '🔐';
 }
 
 export const FarmerDashboardView: React.FC<FarmerDashboardViewProps> = ({
   currentUser,
   openModal,
-  isReset = false,
+  vouchers = [],
+  cropOffers = [],
+  activityLogs = [],
+  ussdBalance,
+  onAddVoucher,
+  onVerifyVoucher,
+  onPostCrop,
+  onDeleteCropOffer,
+  onTopUpWallet,
+  onUpdateProfile,
 }) => {
-  const [allocatedVouchers, setAllocatedVouchers] = useState(
-    isReset ? [] : [
-      { id: 'VOUCH-8821', item: 'Compound D Fertilizer (50kg)', status: 'Received & Verified', batch: 'CMPD-9912', qr: 'QR-COMP-2026-9912' },
-      { id: 'VOUCH-8822', item: 'Top Dressing Ammonium Nitrate (50kg)', status: 'Ready for Pickup', batch: 'AN-7741', qr: 'QR-AN-2026-7741' },
-      { id: 'VOUCH-8823', item: 'Certified Hybrid Maize Seed (10kg)', status: 'Received & Verified', batch: 'SEED-3301', qr: 'QR-SEED-2026-3301' },
-      { id: 'VOUCH-8824', item: 'Insecticide Spray Kit (2L)', status: 'In Transit to Hub', batch: 'CHEM-1082', qr: 'QR-CHEM-2026-1082' },
-    ]
-  );
-
-  const [myCropOffers, setMyCropOffers] = useState(
-    isReset ? [] : [
-      { id: 1, crop: 'White Maize (Grade A)', quantity: '4.5 Tons', price: '$290 / Ton', status: 'Active Listing', buyers: '3 Inquiries' },
-      { id: 2, crop: 'Soybeans (Organic)', quantity: '2.0 Tons', price: '$480 / Ton', status: 'Offer Received', buyers: 'Gweru Millers' },
-    ]
-  );
-
-  const [cooperativeHub, setCooperativeHub] = useState<string>(
-    currentUser.location || 'Murehwa Ward 12'
-  );
-  const [cooperativeName, setCooperativeName] = useState<string>(
-    currentUser.organization || 'Murehwa Grain Co-op'
-  );
   const [isEditingHub, setIsEditingHub] = useState<boolean>(false);
-
-  const [ussdBalance, setUssdBalance] = useState<number>(isReset ? 0.0 : 140.0);
   const [newCropName, setNewCropName] = useState('');
   const [newCropPrice, setNewCropPrice] = useState('');
   const [newCropQuantity, setNewCropQuantity] = useState('1.0 Ton');
 
-  const [farmerActivities, setFarmerActivities] = useState(
-    isReset ? [] : [
-      { id: 1, time: '10 mins ago', desc: 'Registered in Smallholder Association', icon: '🌱' },
-      { id: 2, time: '2 hours ago', desc: 'Verified 10kg Hybrid Maize Seed QR', icon: '🔐' },
-      { id: 3, time: '1 day ago', desc: 'Received USSD input voucher allocation ($140.00)', icon: '💳' },
-    ]
-  );
+  const cooperativeHub = currentUser.location || 'Murehwa Ward 12';
+  const cooperativeName = currentUser.organization || 'Murehwa Grain Co-op';
 
-  // Handle dynamic addition of new voucher package
-  const handleAddVoucherPackage = () => {
-    const newVouch = {
-      id: `VOUCH-${Math.floor(1000 + Math.random() * 9000)}`,
-      item: 'Foliar Bio-Stimulant Pack (5L)',
-      status: 'Ready for Pickup',
-      batch: `BIO-${Math.floor(100 + Math.random() * 900)}`,
-      qr: `QR-BIO-2026-${Math.floor(1000 + Math.random() * 9000)}`,
-    };
-    setAllocatedVouchers((prev) => [newVouch, ...prev]);
-    setFarmerActivities((prev) => [
-      { id: Date.now(), time: 'Just now', desc: `New Input Allocation Granted: ${newVouch.item}`, icon: '🎟️' },
-      ...prev,
-    ]);
-  };
-
-  // Handle dynamic verification of a voucher
-  const handleVerifyVoucher = (voucherId: string) => {
-    setAllocatedVouchers((prev) =>
-      prev.map((v) =>
-        v.id === voucherId ? { ...v, status: 'Received & Verified' } : v
-      )
-    );
-    const target = allocatedVouchers.find((v) => v.id === voucherId);
-    if (target) {
-      setFarmerActivities((prev) => [
-        {
-          id: Date.now(),
-          time: 'Just now',
-          desc: `Verified QR Code for ${target.item}`,
-          icon: '✅',
-        },
-        ...prev,
-      ]);
-    }
-  };
-
-  // Handle dynamic posting of a new crop offer
   const handlePostCrop = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCropName || !newCropPrice) return;
-    const newOffer = {
-      id: Date.now(),
-      crop: newCropName,
-      quantity: newCropQuantity || '1.0 Ton',
-      price: `$${newCropPrice} / Ton`,
-      status: 'Active Listing',
-      buyers: 'New Listing',
-    };
-    setMyCropOffers([newOffer, ...myCropOffers]);
-    setFarmerActivities((prev) => [
-      {
-        id: Date.now(),
-        time: 'Just now',
-        desc: `Posted crop listing: ${newCropName} @ $${newCropPrice}/Ton`,
-        icon: '🌾',
-      },
-      ...prev,
-    ]);
+    onPostCrop(newCropName, parseFloat(newCropPrice), newCropQuantity || '1.0 Ton');
     setNewCropName('');
     setNewCropPrice('');
   };
 
-  // Remove or delete a crop offer
-  const handleDeleteOffer = (id: number) => {
-    setMyCropOffers((prev) => prev.filter((o) => o.id !== id));
+  const handleSwitchHub = (hub: string, name: string) => {
+    onUpdateProfile({ ...currentUser, location: hub, organization: name });
+    setIsEditingHub(false);
   };
 
-  const verifiedCount = allocatedVouchers.filter((v) => v.status === 'Received & Verified').length;
+  const verifiedCount = vouchers.filter((v) => v.status === 'Received & Verified').length;
+  const recentActivities = activityLogs.slice(0, 8);
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -169,9 +124,9 @@ export const FarmerDashboardView: React.FC<FarmerDashboardViewProps> = ({
               </span>
             </div>
             <div className="flex items-baseline justify-between">
-              <div className="text-xl font-extrabold text-slate-900 font-mono">{allocatedVouchers.length} Packages</div>
+              <div className="text-xl font-extrabold text-slate-900 font-mono">{vouchers.length} Packages</div>
               <button
-                onClick={handleAddVoucherPackage}
+                onClick={() => onAddVoucher('Foliar Bio-Stimulant Pack (5L)')}
                 className="px-2 py-0.5 text-[10px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded cursor-pointer transition-colors"
                 title="Simulate receiving another voucher allocation"
               >
@@ -197,25 +152,13 @@ export const FarmerDashboardView: React.FC<FarmerDashboardViewProps> = ({
               <div className="text-xl font-extrabold text-slate-900 font-mono">${ussdBalance.toFixed(2)}</div>
               <div className="flex items-center gap-1">
                 <button
-                  onClick={() => {
-                    setUssdBalance((prev) => prev + 25.0);
-                    setFarmerActivities((prev) => [
-                      { id: Date.now(), time: 'Just now', desc: 'Added +$25.00 USSD Top-Up Credit', icon: '💳' },
-                      ...prev,
-                    ]);
-                  }}
+                  onClick={() => onTopUpWallet(25.0)}
                   className="px-2 py-0.5 text-[10px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded cursor-pointer transition-colors"
                 >
                   +$25
                 </button>
                 <button
-                  onClick={() => {
-                    setUssdBalance((prev) => prev + 50.0);
-                    setFarmerActivities((prev) => [
-                      { id: Date.now(), time: 'Just now', desc: 'Added +$50.00 USSD Top-Up Credit', icon: '💳' },
-                      ...prev,
-                    ]);
-                  }}
+                  onClick={() => onTopUpWallet(50.0)}
                   className="px-2 py-0.5 text-[10px] font-bold text-emerald-800 bg-emerald-100 hover:bg-emerald-200 border border-emerald-300 rounded cursor-pointer transition-colors"
                 >
                   +$50
@@ -236,7 +179,7 @@ export const FarmerDashboardView: React.FC<FarmerDashboardViewProps> = ({
               </span>
             </div>
             <div className="flex items-baseline justify-between">
-              <div className="text-xl font-extrabold text-slate-900 font-mono">{myCropOffers.length} Offers</div>
+              <div className="text-xl font-extrabold text-slate-900 font-mono">{cropOffers.length} Offers</div>
               <button
                 onClick={() => {
                   const el = document.getElementById('crop-post-section');
@@ -279,13 +222,7 @@ export const FarmerDashboardView: React.FC<FarmerDashboardViewProps> = ({
                   value={`${cooperativeHub}|${cooperativeName}`}
                   onChange={(e) => {
                     const [hub, name] = e.target.value.split('|');
-                    setCooperativeHub(hub);
-                    setCooperativeName(name);
-                    setIsEditingHub(false);
-                    setFarmerActivities((prev) => [
-                      { id: Date.now(), time: 'Just now', desc: `Switched Cooperative Hub to ${name} (${hub})`, icon: '🏫' },
-                      ...prev,
-                    ]);
+                    handleSwitchHub(hub, name);
                   }}
                   className="w-full text-xs bg-slate-50 border border-slate-300 rounded p-1 text-slate-900 focus:outline-none"
                 >
@@ -366,7 +303,7 @@ export const FarmerDashboardView: React.FC<FarmerDashboardViewProps> = ({
             </div>
 
             <div className="divide-y divide-slate-100 border-t border-slate-100 pt-2">
-              {allocatedVouchers.map((v) => (
+              {vouchers.map((v) => (
                 <div key={v.id} className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="flex items-start gap-3">
                     <div className="w-8 h-8 rounded bg-slate-100 border border-slate-200 flex items-center justify-center text-sm font-bold mt-0.5">
@@ -390,7 +327,7 @@ export const FarmerDashboardView: React.FC<FarmerDashboardViewProps> = ({
                       </span>
                     ) : (
                       <button
-                        onClick={() => handleVerifyVoucher(v.id)}
+                        onClick={() => onVerifyVoucher(v.id)}
                         className="px-2.5 py-1 text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white rounded cursor-pointer transition-colors shadow-xs flex items-center gap-1"
                       >
                         <QrCode className="w-3 h-3" />
@@ -466,11 +403,11 @@ export const FarmerDashboardView: React.FC<FarmerDashboardViewProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {myCropOffers.map((offer) => (
+                  {cropOffers.map((offer) => (
                     <tr key={offer.id} className="hover:bg-slate-50/80">
-                      <td className="py-2.5 px-3 font-semibold text-slate-900">{offer.crop}</td>
-                      <td className="py-2.5 px-3 text-slate-600">{offer.quantity}</td>
-                      <td className="py-2.5 px-3 font-bold text-slate-900 font-mono">{offer.price}</td>
+                      <td className="py-2.5 px-3 font-semibold text-slate-900">{offer.cropName}</td>
+                      <td className="py-2.5 px-3 text-slate-600">{offer.quantity || '1.0 Ton'}</td>
+                      <td className="py-2.5 px-3 font-bold text-slate-900 font-mono">${offer.askingPrice} / Ton</td>
                       <td className="py-2.5 px-3">
                         <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800">
                           {offer.status}
@@ -478,7 +415,7 @@ export const FarmerDashboardView: React.FC<FarmerDashboardViewProps> = ({
                       </td>
                       <td className="py-2.5 px-3 text-right">
                         <button
-                          onClick={() => handleDeleteOffer(offer.id)}
+                          onClick={() => onDeleteCropOffer(offer.id)}
                           className="text-[11px] font-semibold text-slate-400 hover:text-rose-600 cursor-pointer"
                         >
                           Remove
@@ -501,12 +438,12 @@ export const FarmerDashboardView: React.FC<FarmerDashboardViewProps> = ({
               <span className="text-[10px] font-mono text-emerald-600 font-normal">Live Sync</span>
             </h3>
             <div className="space-y-2.5">
-              {farmerActivities.map((act) => (
+              {recentActivities.map((act) => (
                 <div key={act.id} className="flex items-start gap-2.5 text-xs p-2 bg-slate-50 rounded-md border border-slate-100">
-                  <span className="text-sm">{act.icon}</span>
+                  <span className="text-sm">{activityIcon(act)}</span>
                   <div className="flex-1">
-                    <p className="font-medium text-slate-800 leading-tight">{act.desc}</p>
-                    <span className="text-[10px] text-slate-400 font-mono">{act.time}</span>
+                    <p className="font-medium text-slate-800 leading-tight">{act.typeDetails}</p>
+                    <span className="text-[10px] text-slate-400 font-mono">{act.timestamp}</span>
                   </div>
                 </div>
               ))}

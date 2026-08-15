@@ -1,22 +1,30 @@
 import React, { useState } from 'react';
+import { addDeliveryPayoutApi } from '../../api/client';
 
 interface DeliveryModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onSuccess?: () => void;
 }
 
-export const DeliveryModal: React.FC<DeliveryModalProps> = ({ isOpen, onClose }) => {
+export const DeliveryModal: React.FC<DeliveryModalProps> = ({ isOpen, onClose, onSuccess }) => {
   const [fid, setFid] = useState('');
   const [weight, setWeight] = useState('');
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    alert(`🌾 Payout Weight Logged: ${weight} Tons for Farmer ${fid}`);
-    setFid('');
-    setWeight('');
-    onClose();
+    try {
+      await addDeliveryPayoutApi(fid, parseFloat(weight));
+      alert(`🌾 Payout Weight Logged: ${weight} Tons for Farmer ${fid}`);
+      setFid('');
+      setWeight('');
+      onSuccess?.();
+      onClose();
+    } catch (err) {
+      alert('Failed to log payout weight');
+    }
   };
 
   return (

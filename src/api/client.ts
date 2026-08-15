@@ -366,12 +366,12 @@ export async function fetchCustomCrops(): Promise<CustomCropOffer[]> {
   }
 }
 
-export async function createCustomCrop(cropName: string, askingPrice: number): Promise<CustomCropOffer> {
+export async function createCustomCrop(cropName: string, askingPrice: number, quantity?: string): Promise<CustomCropOffer> {
   try {
     const res = await fetch('/api/market/custom-crops', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cropName, askingPrice })
+      body: JSON.stringify({ cropName, askingPrice, quantity })
     });
     if (!res.ok) throw new Error('API_404');
     return await res.json();
@@ -380,6 +380,7 @@ export async function createCustomCrop(cropName: string, askingPrice: number): P
       id: Date.now(),
       cropName,
       askingPrice,
+      quantity,
       status: 'Active',
       createdAt: new Date().toISOString()
     };
@@ -435,6 +436,313 @@ export async function resetSystemData() {
     return await res.json();
   } catch (e) {
     return { success: true, message: 'System reset completed locally' };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Dealer: warehouse stock
+// ---------------------------------------------------------------------------
+
+export async function fetchDealerStock(): Promise<any[]> {
+  try {
+    const res = await fetch('/api/dealer/stock');
+    if (!res.ok) throw new Error('API_404');
+    return await res.json();
+  } catch (e) {
+    return [];
+  }
+}
+
+export async function addDealerStockItemApi(name: string, category: string, count: number) {
+  try {
+    const res = await fetch('/api/dealer/stock', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, category, count })
+    });
+    if (!res.ok) throw new Error('API_404');
+    return await res.json();
+  } catch (e) {
+    return { id: Date.now(), name, category, count, status: count < 250 ? 'Low Stock' : 'In Stock', threshold: 'Adequate' };
+  }
+}
+
+export async function adjustDealerStockApi(id: number, delta: number) {
+  try {
+    const res = await fetch(`/api/dealer/stock/${id}/adjust`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ delta })
+    });
+    if (!res.ok) throw new Error('API_404');
+    return await res.json();
+  } catch (e) {
+    return { id, delta };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Dealer: farmer distribution receipts
+// ---------------------------------------------------------------------------
+
+export async function fetchDealerReceipts(): Promise<any[]> {
+  try {
+    const res = await fetch('/api/dealer/receipts');
+    if (!res.ok) throw new Error('API_404');
+    return await res.json();
+  } catch (e) {
+    return [];
+  }
+}
+
+export async function addDealerReceiptApi(farmer: string, ward: string, item: string) {
+  try {
+    const res = await fetch('/api/dealer/receipts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ farmer, ward, item })
+    });
+    if (!res.ok) throw new Error('API_404');
+    return await res.json();
+  } catch (e) {
+    return { id: `REC-${Math.floor(100 + Math.random() * 900)}`, farmer, ward, item, time: 'Just now', status: 'Issued & QR Signed' };
+  }
+}
+
+export async function markReceiptIssuedApi(id: string) {
+  try {
+    const res = await fetch(`/api/dealer/receipts/${id}/issue`, { method: 'PUT' });
+    if (!res.ok) throw new Error('API_404');
+    return await res.json();
+  } catch (e) {
+    return { id, status: 'Issued & QR Signed' };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Generic metrics (dealer + supplier dashboard counters)
+// ---------------------------------------------------------------------------
+
+export async function fetchMetrics(keys: string[]): Promise<Record<string, number>> {
+  try {
+    const res = await fetch(`/api/metrics?keys=${keys.join(',')}`);
+    if (!res.ok) throw new Error('API_404');
+    return await res.json();
+  } catch (e) {
+    return {};
+  }
+}
+
+export async function adjustMetricApi(key: string, delta: number): Promise<number> {
+  try {
+    const res = await fetch(`/api/metrics/${key}/adjust`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ delta })
+    });
+    if (!res.ok) throw new Error('API_404');
+    const data = await res.json();
+    return data.value;
+  } catch (e) {
+    return delta;
+  }
+}
+
+export async function setMetricApi(key: string, value: number) {
+  try {
+    const res = await fetch(`/api/metrics/${key}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ value })
+    });
+    if (!res.ok) throw new Error('API_404');
+    return await res.json();
+  } catch (e) {
+    return { key, value };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Supplier: production batches
+// ---------------------------------------------------------------------------
+
+export async function fetchProductionBatches(): Promise<any[]> {
+  try {
+    const res = await fetch('/api/supplier/batches');
+    if (!res.ok) throw new Error('API_404');
+    return await res.json();
+  } catch (e) {
+    return [];
+  }
+}
+
+export async function addProductionBatchApi(product: string, quantity: number, plant: string) {
+  try {
+    const res = await fetch('/api/supplier/batches', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ product, quantity, plant })
+    });
+    if (!res.ok) throw new Error('API_404');
+    return await res.json();
+  } catch (e) {
+    return {
+      id: Date.now(),
+      batchCode: `BATCH-2026-${Math.floor(1000 + Math.random() * 9000)}`,
+      product,
+      quantity,
+      qrSerialRange: `QR-${Math.floor(1000 + Math.random() * 9000)}-0001 ➔ ${quantity * 2}`,
+      plant,
+      status: 'Sealed & Certified'
+    };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Supplier: depot bulk orders
+// ---------------------------------------------------------------------------
+
+export async function fetchDepotOrders(): Promise<any[]> {
+  try {
+    const res = await fetch('/api/supplier/depot-orders');
+    if (!res.ok) throw new Error('API_404');
+    return await res.json();
+  } catch (e) {
+    return [];
+  }
+}
+
+export async function addDepotOrderApi(depot: string, item?: string, status?: string) {
+  try {
+    const res = await fetch('/api/supplier/depot-orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ depot, item, status })
+    });
+    if (!res.ok) throw new Error('API_404');
+    return await res.json();
+  } catch (e) {
+    return { id: `ORD-${Math.floor(100 + Math.random() * 900)}`, depot, item: item || '500 Bags Basal & Seed Order', date: 'Just now', status: status || 'Connected & Active' };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Farmer: input voucher allocations
+// ---------------------------------------------------------------------------
+
+export async function fetchFarmerVouchers(): Promise<any[]> {
+  try {
+    const res = await fetch('/api/farmer/vouchers');
+    if (!res.ok) throw new Error('API_404');
+    return await res.json();
+  } catch (e) {
+    return [];
+  }
+}
+
+export async function addFarmerVoucherApi(item: string) {
+  try {
+    const res = await fetch('/api/farmer/vouchers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ item })
+    });
+    if (!res.ok) throw new Error('API_404');
+    return await res.json();
+  } catch (e) {
+    return {
+      id: `VOUCH-${Math.floor(1000 + Math.random() * 9000)}`,
+      item,
+      status: 'Ready for Pickup',
+      batch: `BIO-${Math.floor(100 + Math.random() * 900)}`,
+      qr: `QR-BIO-2026-${Math.floor(1000 + Math.random() * 9000)}`
+    };
+  }
+}
+
+export async function verifyFarmerVoucherApi(id: string) {
+  try {
+    const res = await fetch(`/api/farmer/vouchers/${id}/verify`, { method: 'PUT' });
+    if (!res.ok) throw new Error('API_404');
+    return await res.json();
+  } catch (e) {
+    return { id, status: 'Received & Verified' };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Farmer: crop offer deletion
+// ---------------------------------------------------------------------------
+
+export async function deleteCustomCropApi(id: number) {
+  try {
+    const res = await fetch(`/api/market/custom-crops/${id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error('API_404');
+    return await res.json();
+  } catch (e) {
+    return { success: true };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Delivery / payout weigh-ins
+// ---------------------------------------------------------------------------
+
+export async function addDeliveryPayoutApi(farmerAllocationId: string, netWeightTons: number) {
+  try {
+    const res = await fetch('/api/delivery/payout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ farmerAllocationId, netWeightTons })
+    });
+    if (!res.ok) throw new Error('API_404');
+    return await res.json();
+  } catch (e) {
+    return { id: Date.now(), farmerAllocationId, netWeightTons };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Agritex donated-batch QR scan
+// ---------------------------------------------------------------------------
+
+export async function addAgritexScanApi(code: string) {
+  try {
+    const res = await fetch('/api/agritex/scan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code })
+    });
+    if (!res.ok) throw new Error('API_404');
+    return await res.json();
+  } catch (e) {
+    return { success: true };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// User profile update
+// ---------------------------------------------------------------------------
+
+export async function updateUserProfileApi(profile: {
+  email: string;
+  name: string;
+  phone: string;
+  role: string;
+  location: string;
+  organization?: string;
+  district?: string;
+}) {
+  try {
+    const res = await fetch('/api/users/profile', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(profile)
+    });
+    if (!res.ok) throw new Error('API_404');
+    return await res.json();
+  } catch (e) {
+    return { success: true };
   }
 }
 

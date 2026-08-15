@@ -50,6 +50,12 @@ let memData: {
   logisticsTrucks: any[];
   activityLogs: any[];
   stats: any;
+  dealerStock: any[];
+  dealerReceipts: any[];
+  productionBatches: any[];
+  depotOrders: any[];
+  farmerVouchers: any[];
+  metrics: Record<string, number>;
 } = {
   isReset: false,
   users: [
@@ -122,6 +128,42 @@ let memData: {
     incomeValue: 2400,
     baseInputCosts: 1812,
     alertsCount: 0
+  },
+  dealerStock: [
+    { id: 1, name: 'Compound D Fertilizer (50kg)', category: 'Basal Fertilizer', count: 620, status: 'In Stock', threshold: 'Adequate' },
+    { id: 2, name: 'Ammonium Nitrate (50kg)', category: 'Top Dressing', count: 480, status: 'In Stock', threshold: 'Adequate' },
+    { id: 3, name: 'Certified Maize Seed SC-719 (10kg)', category: 'Seeds', count: 210, status: 'Low Stock', threshold: 'Reorder Sent' },
+    { id: 4, name: 'Glyphosate Chemical Concentrate (5L)', category: 'Herbicides', count: 110, status: 'In Stock', threshold: 'Adequate' }
+  ],
+  dealerReceipts: [
+    { id: 'REC-102', farmer: 'Tafadzwa Moyo', ward: 'Ward 12', item: '2x Compound D (50kg)', time: '10:15 AM', status: 'Issued & QR Signed' },
+    { id: 'REC-103', farmer: 'Chipo Sibanda', ward: 'Ward 14', item: '1x Maize Seed (10kg)', time: '09:40 AM', status: 'Issued & QR Signed' },
+    { id: 'REC-104', farmer: 'Blessing Nyoni', ward: 'Ward 12', item: '2x Ammonium Nitrate', time: 'Just now', status: 'Pending Pickup' }
+  ],
+  productionBatches: [
+    { id: 1, batchCode: 'BATCH-2026-CMPD-9912', product: 'Compound D Fertilizer', quantity: 10000, qrSerialRange: 'QR-9912-0001 ➔ 20000', plant: 'Msasa Plant 1', status: 'Sealed & Certified' },
+    { id: 2, batchCode: 'BATCH-2026-AN-7741', product: 'Top Dressing Ammonium Nitrate', quantity: 8500, qrSerialRange: 'QR-7741-0001 ➔ 17000', plant: 'Msasa Plant 2', status: 'In Dispatch Queue' },
+    { id: 3, batchCode: 'BATCH-2026-SEED-3301', product: 'Certified Maize Seed SC-719', quantity: 4000, qrSerialRange: 'QR-3301-0001 ➔ 8000', plant: 'Kadoma Facility', status: 'Sealed & Certified' }
+  ],
+  depotOrders: [
+    { id: 'ORD-901', depot: 'Gweru Industrial Depot', item: '400 Bags Compound D', date: 'Today', status: 'Dispatch Approved' },
+    { id: 'ORD-902', depot: 'Murehwa Central Depot', item: '250 Bags Ammonium Nitrate', date: 'Today', status: 'Loading onto Truck' },
+    { id: 'ORD-903', depot: 'Bindura Agro-Hub', item: '150 Bags Seed Co Maize', date: 'Yesterday', status: 'Delivered' }
+  ],
+  farmerVouchers: [
+    { id: 'VOUCH-8821', item: 'Compound D Fertilizer (50kg)', status: 'Received & Verified', batch: 'CMPD-9912', qr: 'QR-COMP-2026-9912' },
+    { id: 'VOUCH-8822', item: 'Top Dressing Ammonium Nitrate (50kg)', status: 'Ready for Pickup', batch: 'AN-7741', qr: 'QR-AN-2026-7741' },
+    { id: 'VOUCH-8823', item: 'Certified Hybrid Maize Seed (10kg)', status: 'Received & Verified', batch: 'SEED-3301', qr: 'QR-SEED-2026-3301' },
+    { id: 'VOUCH-8824', item: 'Insecticide Spray Kit (2L)', status: 'In Transit to Hub', batch: 'CHEM-1082', qr: 'QR-CHEM-2026-1082' }
+  ],
+  metrics: {
+    registered_farmers: 480,
+    scan_compliance_rate: 99.4,
+    extra_production_tons: 2500,
+    connected_hubs: 142,
+    on_time_deliveries: 128,
+    total_deliveries: 135,
+    farmer_ussd_balance: 140.0
   }
 };
 
@@ -212,7 +254,88 @@ export async function initDatabase() {
         cropName VARCHAR(100) NOT NULL,
         askingPrice DECIMAL(10,2) NOT NULL,
         status VARCHAR(50) NOT NULL,
+        quantity VARCHAR(50),
+        buyers VARCHAR(100),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB;
+    `);
+    // Backfill columns for tables created before quantity/buyers existed.
+    await connection.query(`ALTER TABLE custom_crop_offers ADD COLUMN quantity VARCHAR(50)`).catch(() => {});
+    await connection.query(`ALTER TABLE custom_crop_offers ADD COLUMN buyers VARCHAR(100)`).catch(() => {});
+
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS dealer_stock (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(150) NOT NULL,
+        category VARCHAR(100) NOT NULL,
+        count INT NOT NULL DEFAULT 0,
+        status VARCHAR(50) NOT NULL,
+        threshold VARCHAR(50) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB;
+    `);
+
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS dealer_receipts (
+        id VARCHAR(50) PRIMARY KEY,
+        farmer VARCHAR(100) NOT NULL,
+        ward VARCHAR(100) NOT NULL,
+        item VARCHAR(150) NOT NULL,
+        time VARCHAR(50) NOT NULL,
+        status VARCHAR(50) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB;
+    `);
+
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS production_batches (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        batchCode VARCHAR(100) NOT NULL,
+        product VARCHAR(150) NOT NULL,
+        quantity INT NOT NULL,
+        qrSerialRange VARCHAR(150) NOT NULL,
+        plant VARCHAR(100) NOT NULL,
+        status VARCHAR(50) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB;
+    `);
+
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS depot_orders (
+        id VARCHAR(50) PRIMARY KEY,
+        depot VARCHAR(150) NOT NULL,
+        item VARCHAR(150) NOT NULL,
+        date VARCHAR(50) NOT NULL,
+        status VARCHAR(50) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB;
+    `);
+
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS farmer_vouchers (
+        id VARCHAR(50) PRIMARY KEY,
+        item VARCHAR(150) NOT NULL,
+        status VARCHAR(50) NOT NULL,
+        batch VARCHAR(100) NOT NULL,
+        qr VARCHAR(100) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB;
+    `);
+
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS delivery_payouts (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        farmerAllocationId VARCHAR(100) NOT NULL,
+        netWeightTons DECIMAL(10,2) NOT NULL,
+        timestamp VARCHAR(50) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB;
+    `);
+
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS app_metrics (
+        metric_key VARCHAR(60) PRIMARY KEY,
+        metric_value DECIMAL(14,2) NOT NULL
       ) ENGINE=InnoDB;
     `);
 
@@ -472,13 +595,19 @@ export async function getCustomCropOffers() {
   return memData.customCropOffers;
 }
 
-export async function addCustomCropOffer(cropName: string, askingPrice: number) {
-  const newOffer = { id: Date.now(), cropName, askingPrice, status: 'Live Offer' };
+export async function addCustomCropOffer(cropName: string, askingPrice: number, extra?: { quantity?: string; buyers?: string; status?: string }) {
+  const status = extra?.status || 'Live Offer';
+  const newOffer: any = { id: Date.now(), cropName, askingPrice, status };
+  if (extra?.quantity) newOffer.quantity = extra.quantity;
+  if (extra?.buyers) newOffer.buyers = extra.buyers;
+
   if (isMySqlAvailable && pool) {
     try {
-      await pool.query('INSERT INTO custom_crop_offers (cropName, askingPrice, status) VALUES (?, ?, ?)', [
-        cropName, askingPrice, 'Live Offer'
-      ]);
+      const [res]: any = await pool.query(
+        'INSERT INTO custom_crop_offers (cropName, askingPrice, status, quantity, buyers) VALUES (?, ?, ?, ?, ?)',
+        [cropName, askingPrice, status, extra?.quantity || null, extra?.buyers || null]
+      );
+      newOffer.id = res.insertId;
     } catch (e) {}
   }
   memData.customCropOffers.push(newOffer);
@@ -614,6 +743,12 @@ export async function resetDatabaseState() {
       await pool.query('DELETE FROM custom_crop_offers');
       await pool.query('DELETE FROM farmers');
       await pool.query('DELETE FROM suppliers');
+      await pool.query('DELETE FROM dealer_stock');
+      await pool.query('DELETE FROM dealer_receipts');
+      await pool.query('DELETE FROM production_batches');
+      await pool.query('DELETE FROM depot_orders');
+      await pool.query('DELETE FROM farmer_vouchers');
+      await pool.query('DELETE FROM app_metrics');
     } catch (e) {
       console.warn('MySQL table reset note:', e);
     }
@@ -629,6 +764,437 @@ export async function resetDatabaseState() {
   memData.customCropOffers = [];
   memData.farmers = [];
   memData.suppliers = [];
+  memData.dealerStock = [];
+  memData.dealerReceipts = [];
+  memData.productionBatches = [];
+  memData.depotOrders = [];
+  memData.farmerVouchers = [];
+  memData.metrics = {
+    registered_farmers: 0,
+    scan_compliance_rate: 0,
+    extra_production_tons: 0,
+    connected_hubs: 0,
+    on_time_deliveries: 0,
+    total_deliveries: 0,
+    farmer_ussd_balance: 0
+  };
 
   return { status: 'reset_success' };
+}
+
+// ---------------------------------------------------------------------------
+// Dealer: warehouse stock
+// ---------------------------------------------------------------------------
+
+function stockStatus(count: number): { status: string; threshold: string } {
+  return count <= 0
+    ? { status: 'Out of Stock', threshold: 'Depleted' }
+    : count < 250
+    ? { status: 'Low Stock', threshold: 'Reorder Sent' }
+    : { status: 'In Stock', threshold: 'Adequate' };
+}
+
+export async function getDealerStock() {
+  if (isMySqlAvailable && pool) {
+    try {
+      const [rows]: any = await pool.query('SELECT * FROM dealer_stock ORDER BY id ASC');
+      if (rows.length > 0) return rows;
+    } catch (e) {}
+  }
+  return memData.dealerStock;
+}
+
+export async function addDealerStockItem(item: { name: string; category: string; count: number }) {
+  const { status, threshold } = stockStatus(item.count);
+  const newItem = { id: Date.now(), name: item.name, category: item.category, count: item.count, status, threshold };
+
+  if (isMySqlAvailable && pool) {
+    try {
+      const [res]: any = await pool.query(
+        'INSERT INTO dealer_stock (name, category, count, status, threshold) VALUES (?, ?, ?, ?, ?)',
+        [item.name, item.category, item.count, status, threshold]
+      );
+      newItem.id = res.insertId;
+    } catch (e) {}
+  }
+
+  memData.dealerStock.push(newItem);
+  return newItem;
+}
+
+export async function adjustDealerStock(id: number, delta: number) {
+  const existing = memData.dealerStock.find((s) => Number(s.id) === Number(id));
+  const currentCount = existing ? existing.count : 0;
+  const newCount = Math.max(0, currentCount + delta);
+  const { status, threshold } = stockStatus(newCount);
+
+  if (isMySqlAvailable && pool) {
+    try {
+      await pool.query('UPDATE dealer_stock SET count = ?, status = ?, threshold = ? WHERE id = ?', [
+        newCount, status, threshold, id
+      ]);
+    } catch (e) {}
+  }
+
+  if (existing) {
+    existing.count = newCount;
+    existing.status = status;
+    existing.threshold = threshold;
+  }
+  return existing || { id, count: newCount, status, threshold };
+}
+
+// ---------------------------------------------------------------------------
+// Dealer: farmer distribution receipts
+// ---------------------------------------------------------------------------
+
+export async function getDealerReceipts() {
+  if (isMySqlAvailable && pool) {
+    try {
+      const [rows]: any = await pool.query('SELECT * FROM dealer_receipts ORDER BY created_at DESC');
+      if (rows.length > 0) return rows;
+    } catch (e) {}
+  }
+  return memData.dealerReceipts;
+}
+
+export async function addDealerReceipt(receipt: { farmer: string; ward: string; item: string; status?: string }) {
+  const id = `REC-${Math.floor(100 + Math.random() * 900)}`;
+  const timeStr = new Date().toTimeString().split(' ')[0];
+  const newReceipt = {
+    id,
+    farmer: receipt.farmer,
+    ward: receipt.ward,
+    item: receipt.item,
+    time: timeStr,
+    status: receipt.status || 'Issued & QR Signed'
+  };
+
+  if (isMySqlAvailable && pool) {
+    try {
+      await pool.query('INSERT INTO dealer_receipts (id, farmer, ward, item, time, status) VALUES (?, ?, ?, ?, ?, ?)', [
+        id, newReceipt.farmer, newReceipt.ward, newReceipt.item, newReceipt.time, newReceipt.status
+      ]);
+    } catch (e) {}
+  }
+
+  memData.dealerReceipts.unshift(newReceipt);
+  return newReceipt;
+}
+
+export async function markReceiptIssued(id: string) {
+  const timeStr = new Date().toTimeString().split(' ')[0];
+
+  if (isMySqlAvailable && pool) {
+    try {
+      await pool.query('UPDATE dealer_receipts SET status = ?, time = ? WHERE id = ?', ['Issued & QR Signed', timeStr, id]);
+    } catch (e) {}
+  }
+
+  const receipt = memData.dealerReceipts.find((r) => r.id === id);
+  if (receipt) {
+    receipt.status = 'Issued & QR Signed';
+    receipt.time = timeStr;
+  }
+  return receipt;
+}
+
+// ---------------------------------------------------------------------------
+// Generic single-value metrics (dealer + supplier dashboard counters)
+// ---------------------------------------------------------------------------
+
+export async function getMetrics(keys: string[]) {
+  const result: Record<string, number> = {};
+  for (const key of keys) {
+    result[key] = memData.metrics[key] ?? 0;
+  }
+
+  if (isMySqlAvailable && pool) {
+    try {
+      const [rows]: any = await pool.query(
+        `SELECT metric_key, metric_value FROM app_metrics WHERE metric_key IN (${keys.map(() => '?').join(',')})`,
+        keys
+      );
+      for (const row of rows) {
+        result[row.metric_key] = Number(row.metric_value);
+      }
+    } catch (e) {}
+  }
+
+  return result;
+}
+
+export async function adjustMetric(key: string, delta: number) {
+  const current = memData.metrics[key] ?? 0;
+  const next = current + delta;
+  memData.metrics[key] = next;
+
+  if (isMySqlAvailable && pool) {
+    try {
+      await pool.query(
+        'INSERT INTO app_metrics (metric_key, metric_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE metric_value = metric_value + ?',
+        [key, next, delta]
+      );
+      const [rows]: any = await pool.query('SELECT metric_value FROM app_metrics WHERE metric_key = ?', [key]);
+      if (rows[0]) memData.metrics[key] = Number(rows[0].metric_value);
+    } catch (e) {}
+  }
+
+  return memData.metrics[key];
+}
+
+export async function setMetric(key: string, value: number) {
+  memData.metrics[key] = value;
+
+  if (isMySqlAvailable && pool) {
+    try {
+      await pool.query(
+        'INSERT INTO app_metrics (metric_key, metric_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE metric_value = ?',
+        [key, value, value]
+      );
+    } catch (e) {}
+  }
+
+  return value;
+}
+
+// ---------------------------------------------------------------------------
+// Supplier: production batches
+// ---------------------------------------------------------------------------
+
+export async function getProductionBatches() {
+  if (isMySqlAvailable && pool) {
+    try {
+      const [rows]: any = await pool.query('SELECT * FROM production_batches ORDER BY id DESC');
+      if (rows.length > 0) return rows;
+    } catch (e) {}
+  }
+  return memData.productionBatches;
+}
+
+export async function addProductionBatch(batch: { product: string; quantity: number; plant: string }) {
+  const batchCode = `BATCH-2026-${Math.floor(1000 + Math.random() * 9000)}`;
+  const qrSerialRange = `QR-${Math.floor(1000 + Math.random() * 9000)}-0001 ➔ ${batch.quantity * 2}`;
+  const newBatch = {
+    id: Date.now(),
+    batchCode,
+    product: batch.product,
+    quantity: batch.quantity,
+    qrSerialRange,
+    plant: batch.plant,
+    status: 'Sealed & Certified'
+  };
+
+  if (isMySqlAvailable && pool) {
+    try {
+      const [res]: any = await pool.query(
+        'INSERT INTO production_batches (batchCode, product, quantity, qrSerialRange, plant, status) VALUES (?, ?, ?, ?, ?, ?)',
+        [batchCode, batch.product, batch.quantity, qrSerialRange, batch.plant, newBatch.status]
+      );
+      newBatch.id = res.insertId;
+    } catch (e) {}
+  }
+
+  memData.productionBatches.unshift(newBatch);
+  return newBatch;
+}
+
+// ---------------------------------------------------------------------------
+// Supplier: depot bulk orders
+// ---------------------------------------------------------------------------
+
+export async function getDepotOrders() {
+  if (isMySqlAvailable && pool) {
+    try {
+      const [rows]: any = await pool.query('SELECT * FROM depot_orders ORDER BY created_at DESC');
+      if (rows.length > 0) return rows;
+    } catch (e) {}
+  }
+  return memData.depotOrders;
+}
+
+export async function addDepotOrder(order: { depot: string; item?: string; status?: string }) {
+  const id = `ORD-${Math.floor(100 + Math.random() * 900)}`;
+  const newOrder = {
+    id,
+    depot: order.depot,
+    item: order.item || '500 Bags Basal & Seed Order',
+    date: 'Just now',
+    status: order.status || 'Connected & Active'
+  };
+
+  if (isMySqlAvailable && pool) {
+    try {
+      await pool.query('INSERT INTO depot_orders (id, depot, item, date, status) VALUES (?, ?, ?, ?, ?)', [
+        id, newOrder.depot, newOrder.item, newOrder.date, newOrder.status
+      ]);
+    } catch (e) {}
+  }
+
+  memData.depotOrders.unshift(newOrder);
+  return newOrder;
+}
+
+// ---------------------------------------------------------------------------
+// Farmer: input voucher allocations
+// ---------------------------------------------------------------------------
+
+export async function getFarmerVouchers() {
+  if (isMySqlAvailable && pool) {
+    try {
+      const [rows]: any = await pool.query('SELECT * FROM farmer_vouchers ORDER BY created_at DESC');
+      if (rows.length > 0) return rows;
+    } catch (e) {}
+  }
+  return memData.farmerVouchers;
+}
+
+export async function addFarmerVoucher(item: string) {
+  const id = `VOUCH-${Math.floor(1000 + Math.random() * 9000)}`;
+  const batch = `BIO-${Math.floor(100 + Math.random() * 900)}`;
+  const qr = `QR-BIO-2026-${Math.floor(1000 + Math.random() * 9000)}`;
+  const newVoucher = { id, item, status: 'Ready for Pickup', batch, qr };
+
+  if (isMySqlAvailable && pool) {
+    try {
+      await pool.query('INSERT INTO farmer_vouchers (id, item, status, batch, qr) VALUES (?, ?, ?, ?, ?)', [
+        id, item, newVoucher.status, batch, qr
+      ]);
+    } catch (e) {}
+  }
+
+  memData.farmerVouchers.unshift(newVoucher);
+
+  await addActivityLog({
+    qrCode: `🎟️ ${id}`,
+    typeDetails: `New Input Allocation Granted: ${item}`,
+    status: 'verified',
+    location: 'Depot Allocation',
+    timestamp: new Date().toTimeString().split(' ')[0]
+  });
+
+  return newVoucher;
+}
+
+export async function verifyFarmerVoucher(id: string) {
+  if (isMySqlAvailable && pool) {
+    try {
+      await pool.query('UPDATE farmer_vouchers SET status = ? WHERE id = ?', ['Received & Verified', id]);
+    } catch (e) {}
+  }
+
+  const voucher = memData.farmerVouchers.find((v) => v.id === id);
+  if (voucher) {
+    voucher.status = 'Received & Verified';
+  }
+
+  if (voucher) {
+    await addActivityLog({
+      qrCode: `✅ ${id}`,
+      typeDetails: `Verified QR Code for ${voucher.item}`,
+      status: 'verified',
+      location: 'Farm Gate',
+      timestamp: new Date().toTimeString().split(' ')[0]
+    });
+  }
+
+  return voucher;
+}
+
+// ---------------------------------------------------------------------------
+// Farmer: crop offer deletion (extends the shared custom_crop_offers table)
+// ---------------------------------------------------------------------------
+
+export async function deleteCustomCropOffer(id: number) {
+  if (isMySqlAvailable && pool) {
+    try {
+      await pool.query('DELETE FROM custom_crop_offers WHERE id = ?', [id]);
+    } catch (e) {}
+  }
+  memData.customCropOffers = memData.customCropOffers.filter((o) => Number(o.id) !== Number(id));
+  return { success: true };
+}
+
+// ---------------------------------------------------------------------------
+// Delivery / payout weigh-ins
+// ---------------------------------------------------------------------------
+
+export async function addDeliveryPayout(payout: { farmerAllocationId: string; netWeightTons: number }) {
+  const timeStr = new Date().toTimeString().split(' ')[0];
+  const newPayout = { id: Date.now(), ...payout, timestamp: timeStr };
+
+  if (isMySqlAvailable && pool) {
+    try {
+      await pool.query('INSERT INTO delivery_payouts (farmerAllocationId, netWeightTons, timestamp) VALUES (?, ?, ?)', [
+        payout.farmerAllocationId, payout.netWeightTons, timeStr
+      ]);
+    } catch (e) {}
+  }
+
+  await addActivityLog({
+    qrCode: `🌾 ${payout.farmerAllocationId}`,
+    typeDetails: `Payout Weight Logged: ${payout.netWeightTons} Tons for Farmer ${payout.farmerAllocationId}`,
+    status: 'delivered',
+    location: 'Depot Intake',
+    timestamp: timeStr
+  });
+
+  return newPayout;
+}
+
+// ---------------------------------------------------------------------------
+// Agritex donated-batch QR scan logging
+// ---------------------------------------------------------------------------
+
+export async function addAgritexScan(code: string) {
+  const timeStr = new Date().toTimeString().split(' ')[0];
+  return addActivityLog({
+    qrCode: code,
+    typeDetails: `Donated Input Batch Registered: ${code}`,
+    status: 'verified',
+    location: 'Depot Collection Point',
+    timestamp: timeStr
+  });
+}
+
+// ---------------------------------------------------------------------------
+// User profile update (match by email; upsert so demo personas persist too)
+// ---------------------------------------------------------------------------
+
+export async function updateUserProfile(profile: {
+  email: string;
+  name: string;
+  phone: string;
+  role: string;
+  location: string;
+  organization?: string;
+  district?: string;
+}) {
+  const normalizedEmail = profile.email.trim().toLowerCase();
+
+  if (isMySqlAvailable && pool) {
+    try {
+      const [existing]: any = await pool.query('SELECT id FROM users WHERE LOWER(email) = ?', [normalizedEmail]);
+      if (existing.length > 0) {
+        await pool.query(
+          'UPDATE users SET name = ?, phone = ?, role = ?, location = ?, organization = ? WHERE LOWER(email) = ?',
+          [profile.name, profile.phone, profile.role, profile.location, profile.organization || '', normalizedEmail]
+        );
+      } else {
+        await pool.query(
+          'INSERT INTO users (email, password, name, role, location, organization, phone) VALUES (?, ?, ?, ?, ?, ?, ?)',
+          [normalizedEmail, 'password123', profile.name, profile.role, profile.location, profile.organization || '', profile.phone]
+        );
+      }
+    } catch (e) {}
+  }
+
+  const existingMemIdx = memData.users.findIndex((u) => u.email.toLowerCase() === normalizedEmail);
+  if (existingMemIdx >= 0) {
+    memData.users[existingMemIdx] = { ...memData.users[existingMemIdx], ...profile, email: normalizedEmail };
+  } else {
+    memData.users.push({ id: Date.now(), password: 'password123', ...profile, email: normalizedEmail } as any);
+  }
+
+  return { success: true };
 }
