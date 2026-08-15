@@ -1,44 +1,11 @@
-var __create = Object.create;
-var __defProp = Object.defineProperty;
-var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
-var __getOwnPropNames = Object.getOwnPropertyNames;
-var __getProtoOf = Object.getPrototypeOf;
-var __hasOwnProp = Object.prototype.hasOwnProperty;
-var __export = (target, all) => {
-  for (var name in all)
-    __defProp(target, name, { get: all[name], enumerable: true });
-};
-var __copyProps = (to, from, except, desc) => {
-  if (from && typeof from === "object" || typeof from === "function") {
-    for (let key of __getOwnPropNames(from))
-      if (!__hasOwnProp.call(to, key) && key !== except)
-        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
-  }
-  return to;
-};
-var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
-  // If the importer is in node compatibility mode or this is not an ESM
-  // file that has been converted to a CommonJS file using a Babel-
-  // compatible transform (i.e. "__esModule" has not been set), then set
-  // "default" to the CommonJS "module.exports" for node compatibility.
-  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
-  mod
-));
-var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
-
 // api-src/vercel-handler.ts
-var vercel_handler_exports = {};
-__export(vercel_handler_exports, {
-  default: () => handler
-});
-module.exports = __toCommonJS(vercel_handler_exports);
-var import_express2 = __toESM(require("express"), 1);
+import express from "express";
 
 // src/routes/api.ts
-var import_express = require("express");
+import { Router } from "express";
 
 // src/db/mysql.ts
-var import_promise = __toESM(require("mysql2/promise"), 1);
+import mysql from "mysql2/promise";
 var MYSQL_CONFIG = process.env.DATABASE_URL ? {
   uri: process.env.DATABASE_URL,
   connectTimeout: 8e3,
@@ -131,7 +98,7 @@ var memData = {
 async function initDatabase() {
   console.log("\u{1F504} Initializing MySQL Database Connection...");
   try {
-    pool = import_promise.default.createPool(MYSQL_CONFIG);
+    pool = mysql.createPool(MYSQL_CONFIG);
     const connection = await pool.getConnection();
     console.log("\u2705 Connected successfully to MySQL Database:", MYSQL_CONFIG.database);
     await connection.query(`
@@ -594,7 +561,7 @@ async function resetDatabaseState() {
 }
 
 // src/routes/api.ts
-var router = (0, import_express.Router)();
+var router = Router();
 router.post("/auth/register", async (req, res) => {
   try {
     const { email, password, name, role, location, organization, phone } = req.body;
@@ -966,8 +933,8 @@ router.post("/reset", async (req, res) => {
 var api_default = router;
 
 // api-src/vercel-handler.ts
-var app = (0, import_express2.default)();
-app.use(import_express2.default.json());
+var app = express();
+app.use(express.json());
 app.use("/api", api_default);
 var dbInit = null;
 async function handler(req, res) {
@@ -977,3 +944,6 @@ async function handler(req, res) {
   await dbInit;
   app(req, res);
 }
+export {
+  handler as default
+};
