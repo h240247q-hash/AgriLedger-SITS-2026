@@ -100,19 +100,23 @@ let memData: {
       phone: '+263774445566'
     }
   ],
+  // NOTE: seed ids across this file (900000+) are deliberately far outside
+  // MySQL AUTO_INCREMENT range so a memory-fallback seed row's id can never
+  // collide with a real DB row's id once one gets inserted — see
+  // adjustDealerStock / deleteCustomCropOffer for what happens if it does.
   farmers: [
-    { id: 1, farmerCode: 'AL-FARM-001', name: 'Tendai Mhako', location: 'Ward 12, Murehwa', phone: '+263771234567' },
-    { id: 2, farmerCode: 'AL-FARM-002', name: 'Rudo Shumba', location: 'Ward 7, Bindura', phone: '+263772345678' },
-    { id: 3, farmerCode: 'AL-FARM-003', name: 'Farai Gomba', location: 'Ward 3, Guruve', phone: '+263773456789' }
+    { id: 900301, farmerCode: 'AL-FARM-001', name: 'Tendai Mhako', location: 'Ward 12, Murehwa', phone: '+263771234567' },
+    { id: 900302, farmerCode: 'AL-FARM-002', name: 'Rudo Shumba', location: 'Ward 7, Bindura', phone: '+263772345678' },
+    { id: 900303, farmerCode: 'AL-FARM-003', name: 'Farai Gomba', location: 'Ward 3, Guruve', phone: '+263773456789' }
   ],
   suppliers: [
-    { id: 1, supplierCode: 'AL-SUPP-001', name: 'Afrivet Supplies', location: 'Harare' },
-    { id: 2, supplierCode: 'AL-SUPP-002', name: 'ZimSeed Co.', location: 'Bulawayo' },
-    { id: 3, supplierCode: 'AL-SUPP-003', name: 'AgroChem Ltd', location: 'Gweru' }
+    { id: 900401, supplierCode: 'AL-SUPP-001', name: 'Afrivet Supplies', location: 'Harare' },
+    { id: 900402, supplierCode: 'AL-SUPP-002', name: 'ZimSeed Co.', location: 'Bulawayo' },
+    { id: 900403, supplierCode: 'AL-SUPP-003', name: 'AgroChem Ltd', location: 'Gweru' }
   ],
   activityLogs: [
-    { id: 1, qrCode: 'QR-SEED-8821', typeDetails: 'Certified Maize Seeds Stock Disbursed', status: 'verified', location: 'Chitungwiza', timestamp: '2h ago' },
-    { id: 2, qrCode: 'QR-FERT-4109', typeDetails: 'Top Dressing Fertilizer Track Allocation', status: 'in-transit', location: 'Goromonzi', timestamp: '5h ago' }
+    { id: 900501, qrCode: 'QR-SEED-8821', typeDetails: 'Certified Maize Seeds Stock Disbursed', status: 'verified', location: 'Chitungwiza', timestamp: '2h ago' },
+    { id: 900502, qrCode: 'QR-FERT-4109', typeDetails: 'Top Dressing Fertilizer Track Allocation', status: 'in-transit', location: 'Goromonzi', timestamp: '5h ago' }
   ],
   logisticsTrucks: [
     { id: '4421', truckPlate: 'ABB 4421', driverName: 'T. Mukamuri', fromLoc: 'Bindura Depot', toLoc: 'Murehwa Ward 12', eta: '1h 25m', status: 'In Transit' },
@@ -121,8 +125,8 @@ let memData: {
   ],
   fraudReports: [],
   customCropOffers: [
-    { id: 1, cropName: 'Munga (Pearl Millet)', askingPrice: 350, status: 'Live Offer' },
-    { id: 2, cropName: 'Sugar Beans (Grade A)', askingPrice: 720, status: 'Live Offer' }
+    { id: 900201, cropName: 'Munga (Pearl Millet)', askingPrice: 350, status: 'Live Offer' },
+    { id: 900202, cropName: 'Sugar Beans (Grade A)', askingPrice: 720, status: 'Live Offer' }
   ],
   stats: {
     incomeValue: 2400,
@@ -130,10 +134,10 @@ let memData: {
     alertsCount: 0
   },
   dealerStock: [
-    { id: 1, name: 'Compound D Fertilizer (50kg)', category: 'Basal Fertilizer', count: 620, status: 'In Stock', threshold: 'Adequate' },
-    { id: 2, name: 'Ammonium Nitrate (50kg)', category: 'Top Dressing', count: 480, status: 'In Stock', threshold: 'Adequate' },
-    { id: 3, name: 'Certified Maize Seed SC-719 (10kg)', category: 'Seeds', count: 210, status: 'Low Stock', threshold: 'Reorder Sent' },
-    { id: 4, name: 'Glyphosate Chemical Concentrate (5L)', category: 'Herbicides', count: 110, status: 'In Stock', threshold: 'Adequate' }
+    { id: 900001, name: 'Compound D Fertilizer (50kg)', category: 'Basal Fertilizer', count: 620, status: 'In Stock', threshold: 'Adequate' },
+    { id: 900002, name: 'Ammonium Nitrate (50kg)', category: 'Top Dressing', count: 480, status: 'In Stock', threshold: 'Adequate' },
+    { id: 900003, name: 'Certified Maize Seed SC-719 (10kg)', category: 'Seeds', count: 210, status: 'Low Stock', threshold: 'Reorder Sent' },
+    { id: 900004, name: 'Glyphosate Chemical Concentrate (5L)', category: 'Herbicides', count: 110, status: 'In Stock', threshold: 'Adequate' }
   ],
   dealerReceipts: [
     { id: 'REC-102', farmer: 'Tafadzwa Moyo', ward: 'Ward 12', item: '2x Compound D (50kg)', time: '10:15 AM', status: 'Issued & QR Signed' },
@@ -141,9 +145,9 @@ let memData: {
     { id: 'REC-104', farmer: 'Blessing Nyoni', ward: 'Ward 12', item: '2x Ammonium Nitrate', time: 'Just now', status: 'Pending Pickup' }
   ],
   productionBatches: [
-    { id: 1, batchCode: 'BATCH-2026-CMPD-9912', product: 'Compound D Fertilizer', quantity: 10000, qrSerialRange: 'QR-9912-0001 ➔ 20000', plant: 'Msasa Plant 1', status: 'Sealed & Certified' },
-    { id: 2, batchCode: 'BATCH-2026-AN-7741', product: 'Top Dressing Ammonium Nitrate', quantity: 8500, qrSerialRange: 'QR-7741-0001 ➔ 17000', plant: 'Msasa Plant 2', status: 'In Dispatch Queue' },
-    { id: 3, batchCode: 'BATCH-2026-SEED-3301', product: 'Certified Maize Seed SC-719', quantity: 4000, qrSerialRange: 'QR-3301-0001 ➔ 8000', plant: 'Kadoma Facility', status: 'Sealed & Certified' }
+    { id: 900101, batchCode: 'BATCH-2026-CMPD-9912', product: 'Compound D Fertilizer', quantity: 10000, qrSerialRange: 'QR-9912-0001 ➔ 20000', plant: 'Msasa Plant 1', status: 'Sealed & Certified' },
+    { id: 900102, batchCode: 'BATCH-2026-AN-7741', product: 'Top Dressing Ammonium Nitrate', quantity: 8500, qrSerialRange: 'QR-7741-0001 ➔ 17000', plant: 'Msasa Plant 2', status: 'In Dispatch Queue' },
+    { id: 900103, batchCode: 'BATCH-2026-SEED-3301', product: 'Certified Maize Seed SC-719', quantity: 4000, qrSerialRange: 'QR-3301-0001 ➔ 8000', plant: 'Kadoma Facility', status: 'Sealed & Certified' }
   ],
   depotOrders: [
     { id: 'ORD-901', depot: 'Gweru Industrial Depot', item: '400 Bags Compound D', date: 'Today', status: 'Dispatch Approved' },
