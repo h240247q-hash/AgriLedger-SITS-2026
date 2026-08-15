@@ -100,6 +100,7 @@ export default function App() {
   const [smsNotification, setSmsNotification] = useState<string | null>(null);
   const [smsTimestamp, setSmsTimestamp] = useState<string>('JUST NOW');
   const [resetKey, setResetKey] = useState<number>(0);
+  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
   const [isSystemReset, setIsSystemReset] = useState<boolean>(false);
 
   const loadData = useCallback(async () => {
@@ -368,6 +369,8 @@ export default function App() {
         setActiveTab={setActiveTab}
         openModal={openModal}
         onLogout={handleLogout}
+        isOpen={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
       />
 
       {/* Main Content Area */}
@@ -379,6 +382,7 @@ export default function App() {
           onReset={handleReset}
           onOpenProfile={() => openModal('profileModal')}
           onLogout={handleLogout}
+          onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)}
         />
 
         <main className="p-6 md:p-8 space-y-6 overflow-y-auto max-w-[1600px] mx-auto w-full">
